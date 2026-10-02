@@ -15,5 +15,9 @@
     <ProjectReference Include="..\Source.Common\Source.Common.csproj" />
     <ProjectReference Include="..\Source.GUI.Controls\Source.GUI.Controls.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <None Update="steam_api64.dll;steam_appid.txt;runtimes\**\*" CopyToOutputDirectory="PreserveNewest" />
+    <None Update="hl2\shaders\**\*;hl2\sdn_resource\**\*;hl2\materials\**\*" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
 
 </Project>

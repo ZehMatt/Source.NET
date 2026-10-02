@@ -251,12 +251,16 @@ public class SDL3_InputSystem(IServiceProvider services) : IInputSystem
 	}
 
 
-	static bool MapVirtualKeyToButtonCode(int virtualKeyCode, out ButtonCode pOut) {
+	static bool MapVirtualKeyToButtonCode(int virtualKeyCode, int windowsVirtualKey, out ButtonCode pOut) {
 		if (virtualKeyCode < 0)
 			pOut = (ButtonCode)(-1 * virtualKeyCode);
 		else {
 			virtualKeyCode &= 0x000000ff;
 			pOut = (ButtonCode)scantokey[virtualKeyCode];
+
+			bool layoutDependent = (pOut >= ButtonCode.Key0 && pOut <= ButtonCode.KeyZ) || (pOut >= ButtonCode.KeyLBracket && pOut <= ButtonCode.KeyEqual);
+			if (layoutDependent && windowsVirtualKey > 0 && windowsVirtualKey < virtualKeyToButtonCode.Length && virtualKeyToButtonCode[windowsVirtualKey] != ButtonCode.None)
+				pOut = virtualKeyToButtonCode[windowsVirtualKey];
 		}
 
 		return true;
@@ -358,7 +362,7 @@ public class SDL3_InputSystem(IServiceProvider services) : IInputSystem
 						}
 						break;
 					case WindowEventType.KeyDown: {
-							if (MapVirtualKeyToButtonCode(ev.VirtualKeyCode, out ButtonCode virtualCode)) {
+							if (MapVirtualKeyToButtonCode(ev.VirtualKeyCode, ev.WindowsVirtualKey, out ButtonCode virtualCode)) {
 								ButtonCode scancode = virtualCode;
 								if (scancode != ButtonCode.None)
 									PostButtonPressedEvent(InputEventType.IE_ButtonPressed, LastSampleTick, scancode, virtualCode);
@@ -383,7 +387,7 @@ public class SDL3_InputSystem(IServiceProvider services) : IInputSystem
 						break;
 
 					case WindowEventType.KeyUp: {
-							if (MapVirtualKeyToButtonCode(ev.VirtualKeyCode, out ButtonCode virtualCode)) {
+							if (MapVirtualKeyToButtonCode(ev.VirtualKeyCode, ev.WindowsVirtualKey, out ButtonCode virtualCode)) {
 								ButtonCode scancode = virtualCode;
 								if (scancode != ButtonCode.None)
 									PostButtonReleasedEvent(InputEventType.IE_ButtonReleased, LastSampleTick, scancode, virtualCode);

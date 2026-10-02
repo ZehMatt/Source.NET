@@ -25,7 +25,7 @@ public static class StaticClassIndicesHelpers
 			return;
 		// Check if the file exists. If it doesn't, our path traversal probably got messed up, so don't write a file somewhere totally random.
 
-		string backPath = Path.Combine(AppContext.BaseDirectory, "../../../../DATATABLES_COMPLETED.md");
+		string backPath = Path.Combine(AppContext.BaseDirectory, "../../DATATABLES_COMPLETED.md");
 
 		if (!File.Exists(backPath))
 			return;

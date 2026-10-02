@@ -1,7 +1,5 @@
 using CommunityToolkit.HighPerformance;
 
-using Game.Assets;
-
 using Microsoft.Extensions.DependencyInjection;
 
 using Snappier;
@@ -103,7 +101,7 @@ public class Common(IServiceProvider providers, Sys Sys)
 		FileSystem FileSystem = providers.GetRequiredService<FileSystem>();
 
 		initInfo.FileSystem = engineAPI.GetRequiredService<IFileSystem>();
-		initInfo.DirectoryName = new(fullModPath);
+		initInfo.DirectoryName = Path.GetFullPath(new string(fullModPath), AppContext.BaseDirectory);
 		if (initInfo.DirectoryName == null)
 			initInfo.DirectoryName = Host.GetCurrentGame();
 
@@ -111,8 +109,6 @@ public class Common(IServiceProvider providers, Sys Sys)
 
 		initInfo.LowViolence = Host.LowViolence;
 		initInfo.MountHDContent = false; // Study this further
-
-		AssetLinker.CheckRequired();
 
 		FileSystem.LoadSearchPaths(ref initInfo);
 		Common.Gamedir = Path.Combine(AppContext.BaseDirectory, initInfo.ModPath ?? throw new Exception("Mod path null"));

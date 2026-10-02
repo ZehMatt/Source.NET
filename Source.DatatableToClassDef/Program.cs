@@ -107,8 +107,8 @@ while (true) {
 		_ => noprefix
 	};
 
-	string cl_path = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../../Game.Client/" + clname + ".cs"));
-	string sv_path = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../../Game.Server/" + svname + ".cs"));
+	string cl_path = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../Game.Client/" + clname + ".cs"));
+	string sv_path = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../Game.Server/" + svname + ".cs"));
 
 	if (File.Exists(cl_path) || File.Exists(sv_path)) {
 		Console.WriteLine("Skipping, already exists.");

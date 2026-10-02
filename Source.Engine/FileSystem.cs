@@ -44,7 +44,7 @@ public class FileSystem(IFileSystem fileSystem, IServiceProvider services)
 			return retVal;
 
 		string baseDir;
-		if (!GetBaseDir(out baseDir))
+		if (!GetBaseDir(initInfo.DirectoryName, out baseDir))
 			return SetupFileSystemError(false, FSReturnCode.InvalidParameters, "FileSystem.GetBaseDir: failed.");
 
 		initInfo.ModPath = initInfo.DirectoryName;
@@ -80,6 +80,10 @@ public class FileSystem(IFileSystem fileSystem, IServiceProvider services)
 			}
 		}
 
+		string engineContentPath = Path.Combine(AppContext.BaseDirectory, "hl2");
+		initInfo.FileSystem.AddSearchPath(engineContentPath, "GAME");
+		initInfo.FileSystem.AddSearchPath(engineContentPath, "MOD");
+
 		initInfo.FileSystem.MarkPathIDByRequestOnly("executable_path", true);
 		initInfo.FileSystem.MarkPathIDByRequestOnly("gamebin", true);
 		initInfo.FileSystem.MarkPathIDByRequestOnly("download", true);
@@ -94,9 +98,9 @@ public class FileSystem(IFileSystem fileSystem, IServiceProvider services)
 		return FSReturnCode.OK;
 	}
 
-	private bool GetBaseDir(out string baseDir) {
-		baseDir = AppContext.BaseDirectory;
-		return true;
+	private bool GetBaseDir(string gameDir, out string baseDir) {
+		baseDir = Path.GetDirectoryName(Path.TrimEndingDirectorySeparator(Path.GetFullPath(gameDir, AppContext.BaseDirectory)))!;
+		return baseDir != null;
 	}
 
 	public const string GAMEINFO_FILENAME = "gameinfo.txt";

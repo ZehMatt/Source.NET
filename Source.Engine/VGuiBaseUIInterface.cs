@@ -348,6 +348,7 @@ public class EngineVGui(
 
 	CL CL;
 	Con Con;
+	Key Key;
 
 	EnginePanel staticEngineToolsPanel;
 #pragma warning restore CS8618
@@ -557,6 +558,7 @@ public class EngineVGui(
 		localize = engineAPI.GetRequiredService<ILocalize>();
 		CL = engineAPI.GetRequiredService<CL>();
 		Con = engineAPI.GetRequiredService<Con>();
+		Key = engineAPI.GetRequiredService<Key>();
 		vguiScheme.Init();
 		// IGameConsole, but later.
 
@@ -1040,7 +1042,7 @@ public class EngineVGui(
 		}
 
 		if (surface.HandleInputEvent(in ev)) {
-			if (IsPC() && (code == ButtonCode.KeyBackquote))
+			if (IsPC() && Key.BindingForKey(code).Equals("toggleconsole", StringComparison.OrdinalIgnoreCase))
 				return false;
 			return true;
 		}

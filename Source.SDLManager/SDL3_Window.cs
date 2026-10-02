@@ -5,6 +5,7 @@ using Source.Common.Launcher;
 
 using System.Collections.Concurrent;
 using System.Numerics;
+using System.Runtime.InteropServices;
 
 namespace Source.SDLManager;
 
@@ -252,11 +253,16 @@ public unsafe class SDL3_Window : IWindow
 
 		ev.VirtualKeyCode = -(int)key;
 	}
+	const uint MAPVK_VSC_TO_VK_EX = 3;
+	[DllImport("user32.dll")] static extern uint MapVirtualKeyW(uint uCode, uint uMapType);
+
 	private void HandleKeyEvent(ref SDL_Event ev) {
 		bool pressed = ev.Type == SDL_EventType.SDL_EVENT_KEY_DOWN;
 		WindowEvent newEvent = new WindowEvent();
 		newEvent.EventType = pressed ? WindowEventType.KeyDown : WindowEventType.KeyUp;
 		newEvent.VirtualKeyCode = (int)ev.key.scancode;
+		if (OperatingSystem.IsWindows())
+			newEvent.WindowsVirtualKey = (int)MapVirtualKeyW(ev.key.raw, MAPVK_VSC_TO_VK_EX);
 		newEvent.UTF8Key = '\0';
 		newEvent.UTF8KeyUnmodified = '\0';
 
