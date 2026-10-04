@@ -217,19 +217,6 @@ public enum LumpVersions
 	LUMP_LEAF_AMBIENT_LIGHTING_VERSION = 1,
 }
 
-public static class LZMA
-{
-	static SevenZip.Compression.LZMA.Decoder decoder = new();
-	public static void Decompress(Stream input, Stream output, long inBytes, long outBytes) {
-		byte[] properties = new byte[5];
-		if (input.Read(properties, 0, 5) != 5)
-			throw new Exception("input .lzma is too short");
-
-		decoder.SetDecoderProperties(properties);
-		decoder.Code(input, output, inBytes, outBytes, null);
-	}
-}
-
 /// <summary>
 /// Analog of lump_t
 /// </summary>
@@ -257,19 +244,13 @@ public struct BSPLump
 			if ((UncompressedSize % sizeofone) != 0)
 				return null; // Funny size
 
-			using BinaryReader br = new(stream, System.Text.Encoding.UTF8, true); // Leave open the file stream
-			LZMAHeader header = default;
-			header.ID = br.ReadUInt32();
-			header.ActualSize = br.ReadUInt32();
-			header.LZMASize = br.ReadUInt32();
+			byte[] compressed = new byte[FileLength];
+			stream.ReadExactly(compressed);
 
-			if (header.ID == LZMAHeader.LZMA_ID) {
+			if (LZMA.IsCompressed(compressed)) {
 				T[] uncompressed = new T[UncompressedSize / Unsafe.SizeOf<T>()];
-				fixed (T* ptr = uncompressed) {
-					using UnmanagedMemoryStream msOut = new((byte*)ptr, 0, UncompressedSize, FileAccess.ReadWrite);
-					LZMA.Decompress(stream, msOut, header.LZMASize, UncompressedSize);
-					return uncompressed;
-				}
+				LZMA.Uncompress(compressed, MemoryMarshal.AsBytes(uncompressed.AsSpan()));
+				return uncompressed;
 			}
 			else {
 				Warning("Invalid LZMA chunk.\n");
@@ -286,15 +267,6 @@ public struct BSPLump
 			return data;
 		}
 	}
-}
-public struct LZMAHeader
-{
-	public const int LZMA_ID = ('A' << 24) | ('M' << 16) | ('Z' << 8) | 'L';
-
-	public uint ID;
-	public uint ActualSize;
-	public uint LZMASize;
-	public InlineArray5<byte> Properties;
 }
 /// <summary>
 /// Analog of dheader_t

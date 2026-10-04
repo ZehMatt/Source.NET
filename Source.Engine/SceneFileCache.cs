@@ -1,5 +1,5 @@
-﻿using Source.Common.Filesystem;
-using Source.Common.Formats.BSP;
+﻿using Source.Common;
+using Source.Common.Filesystem;
 using Source.Common.Hashing;
 using Source.Common.SceneFileCache;
 
@@ -156,36 +156,6 @@ public class SceneFileCache(IFileSystem filesystem) : ISceneFileCache
 		}
 	}
 
-	const int LZMA_HEADER_SIZE = sizeof(uint) * 3;
-
-	static LZMAHeader ReadLZMAHeader(ReadOnlySpan<byte> input) {
-		LZMAHeader header = default;
-		if (input.Length < LZMA_HEADER_SIZE)
-			return header;
-
-		header.ID = MemoryMarshal.Read<uint>(input);
-		header.ActualSize = MemoryMarshal.Read<uint>(input[4..]);
-		header.LZMASize = MemoryMarshal.Read<uint>(input[8..]);
-		return header;
-	}
-
-	static unsafe bool LZMAUncompress(byte[] image, int inputOffset, Span<byte> output) {
-		LZMAHeader header = ReadLZMAHeader(image.AsSpan(inputOffset));
-		int dataOffset = inputOffset + LZMA_HEADER_SIZE;
-
-		if (header.LZMASize > (uint)(image.Length - dataOffset) || header.ActualSize > (uint)output.Length) {
-			Warning($"CSceneFileCache: Bad LZMA sizes (compressed {header.LZMASize}, actual {header.ActualSize})\n");
-			return false;
-		}
-
-		using MemoryStream input = new(image, dataOffset, (int)header.LZMASize, false);
-		fixed (byte* outputPtr = output) {
-			using UnmanagedMemoryStream outputStream = new(outputPtr, 0, header.ActualSize, FileAccess.Write);
-			LZMA.Decompress(input, outputStream, header.LZMASize, header.ActualSize);
-		}
-		return true;
-	}
-
 	bool GetSceneDataFromImage(ReadOnlySpan<char> fileName, int scene, Span<byte> sceneData, ref nuint sceneLength) {
 		byte[]? image = SceneImageFile;
 		if (image == null || scene < 0 || scene >= GetHeader(image).NumScenes) {
@@ -205,19 +175,18 @@ public class SceneFileCache(IFileSystem filesystem) : ISceneFileCache
 		}
 
 		ReadOnlySpan<byte> data = image.AsSpan(entry.DataOffset, entry.DataLength);
-		LZMAHeader lzmaHeader = ReadLZMAHeader(data);
-		bool isCompressed = lzmaHeader.ID == LZMAHeader.LZMA_ID;
+		bool isCompressed = LZMA.IsCompressed(data);
 		if (isCompressed) {
-			int originalSize = (int)lzmaHeader.ActualSize;
+			int originalSize = (int)LZMA.GetActualSize(data);
 			if (!sceneData.IsEmpty) {
 				int maxLen = Math.Min((int)sceneLength, sceneData.Length);
 				if (originalSize <= maxLen) {
-					if (!LZMAUncompress(image, entry.DataOffset, sceneData))
+					if (LZMA.Uncompress(data, sceneData) == 0)
 						return false;
 				}
 				else {
 					byte[] outputData = new byte[originalSize];
-					if (!LZMAUncompress(image, entry.DataOffset, outputData))
+					if (LZMA.Uncompress(data, outputData) == 0)
 						return false;
 					outputData.AsSpan(0, maxLen).CopyTo(sceneData);
 				}

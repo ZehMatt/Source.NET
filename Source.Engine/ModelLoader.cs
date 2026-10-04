@@ -2262,22 +2262,20 @@ public class ModelLoader(IFileSystem fileSystem, Host Host,
 			if (!isCompressed)
 				return file.Read(outBuffer[..outSize]) > 0;
 
-			using BinaryReader reader = new(file, System.Text.Encoding.UTF8, true);
-			LZMAHeader header = default;
-			header.ID = reader.ReadUInt32();
-			header.ActualSize = reader.ReadUInt32();
-			header.LZMASize = reader.ReadUInt32();
+			Span<byte> headerBytes = stackalloc byte[Unsafe.SizeOf<LZMAHeader>()];
+			file.ReadExactly(headerBytes);
 
-			if (header.ID != LZMAHeader.LZMA_ID || header.ActualSize != gameLumpDict[i].UncompressedSize) {
+			if (!LZMA.IsCompressed(headerBytes) || LZMA.GetActualSize(headerBytes) != gameLumpDict[i].UncompressedSize) {
 				Warning($"Failed loading game lump {lumpId}: lump claims to be compressed but metadata does not match\n");
 				return false;
 			}
 
-			using MemoryStream output = new(outSize);
-			LZMA.Decompress(file, output, header.LZMASize, outSize);
-			output.Position = 0;
-			output.ReadExactly(outBuffer[..outSize]);
-			return true;
+			LZMAHeader header = MemoryMarshal.Read<LZMAHeader>(headerBytes);
+			byte[] compressed = new byte[headerBytes.Length + header.LZMASize];
+			headerBytes.CopyTo(compressed);
+			file.ReadExactly(compressed.AsSpan(headerBytes.Length));
+
+			return LZMA.Uncompress(compressed, outBuffer[..outSize]) == outSize;
 		}
 	}
 	internal static void LoadGameLumpDict() {
