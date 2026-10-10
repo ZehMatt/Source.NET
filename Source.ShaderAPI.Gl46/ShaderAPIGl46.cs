@@ -3035,7 +3035,8 @@ public class ShaderAPIGl46 : IShaderAPI, IShaderDevice, IDebugTextureInfo
 	}
 
 	public void BeginOcclusionQueryDrawing(ShaderAPIOcclusionQuery_t query) {
-		throw new NotImplementedException("Incomplete port of IShaderAPI");
+		FlushBufferedPrimitives();
+		glBeginQuery(GL_SAMPLES_PASSED, (uint)query);
 	}
 
 	public void BeginPIXEvent(Color color, ReadOnlySpan<char> name) {
@@ -3082,8 +3083,10 @@ public class ShaderAPIGl46 : IShaderAPI, IShaderDevice, IDebugTextureInfo
 		throw new NotImplementedException("Incomplete port of IShaderAPI");
 	}
 
-	public ShaderAPIOcclusionQuery_t CreateOcclusionQueryObject() {
-		throw new NotImplementedException("Incomplete port of IShaderAPI");
+	public unsafe ShaderAPIOcclusionQuery_t CreateOcclusionQueryObject() {
+		uint query;
+		glCreateQueries(GL_SAMPLES_PASSED, 1, &query);
+		return (ShaderAPIOcclusionQuery_t)query;
 	}
 
 	public void CullMode(MaterialCullMode cullMode) {
@@ -3094,8 +3097,9 @@ public class ShaderAPIGl46 : IShaderAPI, IShaderDevice, IDebugTextureInfo
 		throw new NotImplementedException("Incomplete port of IShaderAPI");
 	}
 
-	public void DestroyOcclusionQueryObject(ShaderAPIOcclusionQuery_t query) {
-		throw new NotImplementedException("Incomplete port of IShaderAPI");
+	public unsafe void DestroyOcclusionQueryObject(ShaderAPIOcclusionQuery_t query) {
+		uint id = (uint)query;
+		glDeleteQueries(1, &id);
 	}
 
 	public void DestroyVertexBuffers(bool exitingLevel = false) {
@@ -3131,7 +3135,8 @@ public class ShaderAPIGl46 : IShaderAPI, IShaderDevice, IDebugTextureInfo
 	}
 
 	public void EndOcclusionQueryDrawing(ShaderAPIOcclusionQuery_t query) {
-		throw new NotImplementedException("Incomplete port of IShaderAPI");
+		FlushBufferedPrimitives();
+		glEndQuery(GL_SAMPLES_PASSED);
 	}
 
 	public void EndPIXEvent() {
@@ -3202,8 +3207,20 @@ public class ShaderAPIGl46 : IShaderAPI, IShaderDevice, IDebugTextureInfo
 		throw new NotImplementedException("Incomplete port of IShaderAPI");
 	}
 
-	public int OcclusionQuery_GetNumPixelsRendered(ShaderAPIOcclusionQuery_t query, bool flush = false) {
-		throw new NotImplementedException("Incomplete port of IShaderAPI");
+	public unsafe int OcclusionQuery_GetNumPixelsRendered(ShaderAPIOcclusionQuery_t query, bool flush = false) {
+		int available;
+		glGetQueryObjectiv((uint)query, GL_QUERY_RESULT_AVAILABLE, &available);
+		if (available == 0) {
+			if (flush)
+				glFlush();
+			return IShaderAPI.OCCLUSION_QUERY_RESULT_PENDING;
+		}
+
+		uint pixels;
+		glGetQueryObjectuiv((uint)query, GL_QUERY_RESULT, &pixels);
+		if ((pixels & 0x80000000) != 0)
+			pixels = 0;
+		return (int)pixels;
 	}
 
 	bool OverrideAlphaWrite;

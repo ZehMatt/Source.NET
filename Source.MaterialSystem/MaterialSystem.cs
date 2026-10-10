@@ -135,6 +135,7 @@ public class MaterialSystem : IMaterialSystemInternal, IShaderUtil
 		ShaderSystem.Init();
 		CreateDebugMaterials();
 		MatLightmaps = new(this);
+		OcclusionQueryMgr = new(this);
 	}
 
 	ILauncherManager launcherMgr;
@@ -952,6 +953,7 @@ public class MaterialSystem : IMaterialSystemInternal, IShaderUtil
 
 	void ReleaseShaderObjects() {
 		// todo
+		OcclusionQueryMgr.FreeOcclusionQueryObjects();
 		ReleaseStandardTextures();
 		for (int i = 0; i < ReleaseFunc.Count; i++)
 			ReleaseFunc[i]();
@@ -969,6 +971,7 @@ public class MaterialSystem : IMaterialSystemInternal, IShaderUtil
 
 		TextureSystem.RestoreRenderTargets();
 		AllocateStandardTextures();
+		OcclusionQueryMgr.AllocOcclusionQueryObjects();
 		Restore?.Invoke();
 		for (int i = 0; i < RestoreFunc.Count; i++)
 			RestoreFunc[i]((RestoreChangeFlags)changeFlags);
@@ -1337,6 +1340,7 @@ public class MaterialSystem : IMaterialSystemInternal, IShaderUtil
 
 	public IMaterialInternal errorMaterial;
 	public readonly MatLightmaps MatLightmaps;
+	public readonly OcclusionQueryMgr OcclusionQueryMgr;
 
 	public bool AddTextureCompositorTemplate(ReadOnlySpan<char> name, KeyValues tmplDesc, int texCompositeTemplateFlags = 0) {
 		throw new NotImplementedException("Incomplete port of IMaterialSystem");

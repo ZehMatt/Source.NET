@@ -354,6 +354,7 @@ public class MatRenderContext : IMatRenderContextInternal
 	}
 
 	public void SwapBuffers() {
+		materials.OcclusionQueryMgr.AdvanceFrame();
 		materials.ShaderDevice.Present();
 	}
 
@@ -802,9 +803,7 @@ public class MatRenderContext : IMatRenderContextInternal
 		throw new NotImplementedException("Incomplete port of IMatRenderContext");
 	}
 
-	public void BeginOcclusionQueryDrawing(OcclusionQueryObjectHandle_t handle) {
-		throw new NotImplementedException("Incomplete port of IMatRenderContext");
-	}
+	public void BeginOcclusionQueryDrawing(OcclusionQueryObjectHandle_t handle) => materials.OcclusionQueryMgr.BeginOcclusionQueryDrawing(handle);
 
 	public void BeginPIXEvent(Color color, ReadOnlySpan<char> name) {
 		throw new NotImplementedException("Incomplete port of IMatRenderContext");
@@ -847,7 +846,9 @@ public class MatRenderContext : IMatRenderContextInternal
 	}
 
 	public OcclusionQueryObjectHandle_t CreateOcclusionQueryObject() {
-		throw new NotImplementedException("Incomplete port of IMatRenderContext");
+		OcclusionQueryObjectHandle_t h = materials.OcclusionQueryMgr.CreateOcclusionQueryObject();
+		materials.OcclusionQueryMgr.OnCreateOcclusionQueryObject(h);
+		return h;
 	}
 
 	public void CullMode(MaterialCullMode cullMode) {
@@ -858,9 +859,7 @@ public class MatRenderContext : IMatRenderContextInternal
 		throw new NotImplementedException("Incomplete port of IMatRenderContext");
 	}
 
-	public void DestroyOcclusionQueryObject(OcclusionQueryObjectHandle_t handle) {
-		throw new NotImplementedException("Incomplete port of IMatRenderContext");
-	}
+	public void DestroyOcclusionQueryObject(OcclusionQueryObjectHandle_t handle) => materials.OcclusionQueryMgr.DestroyOcclusionQueryObject(handle);
 
 	public void DrawScreenSpaceQuad(IMaterial? material) {
 		throw new NotImplementedException("Incomplete port of IMatRenderContext");
@@ -886,9 +885,7 @@ public class MatRenderContext : IMatRenderContextInternal
 		throw new NotImplementedException("Incomplete port of IMatRenderContext");
 	}
 
-	public void EndOcclusionQueryDrawing(OcclusionQueryObjectHandle_t handle) {
-		throw new NotImplementedException("Incomplete port of IMatRenderContext");
-	}
+	public void EndOcclusionQueryDrawing(OcclusionQueryObjectHandle_t handle) => materials.OcclusionQueryMgr.EndOcclusionQueryDrawing(handle);
 
 	public void EndPIXEvent() {
 		throw new NotImplementedException("Incomplete port of IMatRenderContext");
@@ -1010,9 +1007,7 @@ public class MatRenderContext : IMatRenderContextInternal
 		throw new NotImplementedException("Incomplete port of IMatRenderContext");
 	}
 
-	public int OcclusionQuery_GetNumPixelsRendered(OcclusionQueryObjectHandle_t handle) {
-		throw new NotImplementedException("Incomplete port of IMatRenderContext");
-	}
+	public int OcclusionQuery_GetNumPixelsRendered(OcclusionQueryObjectHandle_t handle) => materials.OcclusionQueryMgr.OcclusionQuery_GetNumPixelsRendered(handle, true);
 
 	public void OverrideAlphaWriteEnable(bool enable, bool alphaWriteEnable) => shaderAPI.OverrideAlphaWriteEnable(enable, alphaWriteEnable);
 
@@ -1096,9 +1091,7 @@ public class MatRenderContext : IMatRenderContextInternal
 		throw new NotImplementedException("Incomplete port of IMatRenderContext");
 	}
 
-	public void ResetOcclusionQueryObject(OcclusionQueryObjectHandle_t handle) {
-		throw new NotImplementedException("Incomplete port of IMatRenderContext");
-	}
+	public void ResetOcclusionQueryObject(OcclusionQueryObjectHandle_t handle) => materials.OcclusionQueryMgr.ResetOcclusionQueryObject(handle);
 
 	public void ResetToneMappingScale(float monoscale) {
 		throw new NotImplementedException("Incomplete port of IMatRenderContext");

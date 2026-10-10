@@ -301,6 +301,11 @@ public interface IShaderAPI : IShaderDynamicAPI
 	// Occlusion query support
 	//
 
+	public const ShaderAPIOcclusionQuery_t INVALID_SHADERAPI_OCCLUSION_QUERY_HANDLE = 0;
+	public const int OCCLUSION_QUERY_RESULT_PENDING = -1;
+	public const int OCCLUSION_QUERY_RESULT_ERROR = -2;
+	public static bool OCCLUSION_QUERY_FINISHED(int queryResult) => queryResult != OCCLUSION_QUERY_RESULT_PENDING;
+
 	// Allocate and delete query objects.
 	ShaderAPIOcclusionQuery_t CreateOcclusionQueryObject();
 	void DestroyOcclusionQueryObject(ShaderAPIOcclusionQuery_t query);
