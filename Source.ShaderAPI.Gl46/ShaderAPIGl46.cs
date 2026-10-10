@@ -266,6 +266,7 @@ public class ShaderAPIGl46 : IShaderAPI, IShaderDevice, IDebugTextureInfo
 	int UserClipPlaneChanged;
 	readonly Vector4[] UserClipPlaneWorld = new Vector4[Gl46.HardwareConfig.MAXUSERCLIPPLANES];
 	readonly Vector4[] UserClipPlaneProj = new Vector4[Gl46.HardwareConfig.MAXUSERCLIPPLANES];
+	float FogZ;
 
 	private void MarkAllUserClipPlanesDirty() {
 		UserClipPlaneChanged |= (1 << Gl46.HardwareConfig.MAXUSERCLIPPLANES) - 1;
@@ -820,7 +821,7 @@ public class ShaderAPIGl46 : IShaderAPI, IShaderDevice, IDebugTextureInfo
 			WorldSpaceCameraPosition.X,
 			WorldSpaceCameraPosition.Y,
 			WorldSpaceCameraPosition.Z,
-			0.0f, // todo: waterheight
+			FogZ,
 		];
 
 		SetVertexShaderConstant(VertexShaderConst.CameraPos, vertexShaderCameraPos);
@@ -3443,7 +3444,11 @@ public class ShaderAPIGl46 : IShaderAPI, IShaderDevice, IDebugTextureInfo
 	}
 
 	public void SetFogZ(float fogZ) {
-		throw new NotImplementedException("Incomplete port of IShaderAPI");
+		if (fogZ != FogZ) {
+			FlushBufferedPrimitives();
+			FogZ = fogZ;
+			UpdateVertexShaderFogParams();
+		}
 	}
 
 	public void SetFullScreenTextureHandle(ShaderAPITextureHandle_t h) {

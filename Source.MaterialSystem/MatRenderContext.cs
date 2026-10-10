@@ -1270,9 +1270,7 @@ public class MatRenderContext : IMatRenderContextInternal
 
 	public void SetFloatRenderingParameter(int parm_number, float value) => shaderAPI.SetFloatRenderingParameter(parm_number, value);
 
-	public void SetFogZ(float fogZ) {
-		throw new NotImplementedException("Incomplete port of IMatRenderContext");
-	}
+	public void SetFogZ(float fogZ) => shaderAPI.SetFogZ(fogZ);
 
 	public void SetFullScreenDepthTextureValidityFlag(bool isValid) {
 		throw new NotImplementedException("Incomplete port of IMatRenderContext");
