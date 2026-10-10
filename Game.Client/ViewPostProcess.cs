@@ -43,7 +43,7 @@ public static class ViewPostProcess
 	public static readonly ConVar mat_debug_bloom = new("mat_debug_bloom", "0", FCvar.Cheat);
 
 	public static readonly ConVar mat_non_hdr_bloom_scalefactor = new("mat_non_hdr_bloom_scalefactor", ".3");
-	static readonly ConVar mat_bloom_scalefactor_scalar = new("mat_bloom_scalefactor_scalar", "1.0");
+	static readonly ConVar mat_bloom_scalefactor_scalar = new("mat_bloom_scalefactor_scalar", "0.5");
 
 	public static readonly ConVar mat_exposure_center_region_x = new("mat_exposure_center_region_x", "0.9", FCvar.Cheat);
 	public static readonly ConVar mat_exposure_center_region_y = new("mat_exposure_center_region_y", "0.85", FCvar.Cheat);
