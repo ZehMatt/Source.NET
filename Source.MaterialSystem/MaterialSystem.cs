@@ -185,10 +185,10 @@ public class MaterialSystem : IMaterialSystemInternal, IShaderUtil
 
 		ShaderAPI.SetDefaultState();
 
-		// if (config.HDREnabled() != Config.HDREnabled()) {
-		// 	forceUpdate = true;
-		// 	reloadMaterials = true;
-		// }
+		if (config.HDREnabled() != Config.HDREnabled()) {
+			forceUpdate = true;
+			reloadMaterials = true;
+		}
 
 		if (config.ShadowDepthTexture != Config.ShadowDepthTexture) {
 			forceUpdate = true;
@@ -1572,7 +1572,7 @@ public class MaterialSystem : IMaterialSystemInternal, IShaderUtil
 	}
 
 	public bool SupportsHDRMode(HDRType hdrMode) {
-		throw new NotImplementedException("Incomplete port of IMaterialSystem");
+		return HardwareConfig.SupportsHDRMode(hdrMode);
 	}
 
 	public bool SupportsMSAAMode(int nMSAAMode) {

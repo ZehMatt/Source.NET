@@ -30,16 +30,21 @@ public class HardwareConfig : IMaterialSystemHardwareConfig
 		throw new NotImplementedException();
 	}
 
-	// HDR todo fixme
+	public HDRType HDRTypeCap = HDRType.Integer;
+	public HDRType MaxHDRType = HDRType.Float;
+	bool HDREnabled;
+
 	public HDRType GetHardwareHDRType() {
-		return HDRType.None;
+		return HDRTypeCap;
 	}
 
 	public bool GetHDREnabled() {
-		return false;
+		return HDREnabled;
 	}
 
 	public HDRType GetHDRType() {
+		if (HDREnabled)
+			return HDRTypeCap;
 		return HDRType.None;
 	}
 
@@ -203,7 +208,7 @@ public class HardwareConfig : IMaterialSystemHardwareConfig
 	}
 
 	public void SetHDREnabled(bool bEnable) {
-		throw new NotImplementedException();
+		HDREnabled = bEnable;
 	}
 
 	public bool SpecifiesFogColorInLinearSpace() {
@@ -252,7 +257,15 @@ public class HardwareConfig : IMaterialSystemHardwareConfig
 	}
 
 	public bool SupportsHDRMode(HDRType nHDRMode) {
-		throw new NotImplementedException();
+		switch (nHDRMode) {
+			case HDRType.None:
+				return true;
+			case HDRType.Integer:
+				return MaxHDRType == HDRType.Integer || MaxHDRType == HDRType.Float;
+			case HDRType.Float:
+				return MaxHDRType == HDRType.Float;
+		}
+		return false;
 	}
 
 	public bool SupportsMipmappedCubemaps() {
