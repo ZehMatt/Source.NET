@@ -21,6 +21,10 @@ layout(std140, binding = 2) uniform source_vertex_sharedUBO {
     vec4 lightEnabled;
 };
 
+layout(std140, binding = 4) uniform source_bone_matrices {
+    mat4 bones[256];
+};
+
 layout(std140, binding = 5) uniform source_vs_constants {
     vec4 vs_const[256];
 };
