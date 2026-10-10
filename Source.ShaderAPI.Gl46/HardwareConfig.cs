@@ -159,8 +159,10 @@ public class HardwareConfig : IMaterialSystemHardwareConfig
 		return *maxTextureSize;
 	}
 
+	public const int MAXUSERCLIPPLANES = 2;
+
 	public int MaxUserClipPlanes() {
-		throw new NotImplementedException();
+		return MAXUSERCLIPPLANES;
 	}
 
 	public int MaxVertexShaderBlendMatrices() {
@@ -328,7 +330,7 @@ public class HardwareConfig : IMaterialSystemHardwareConfig
 	}
 
 	public bool UseFastClipping() {
-		throw new NotImplementedException();
+		return false;
 	}
 
 	static readonly ConVar r_shader_srgb = new("r_shader_srgb", "0", 0, "-1 = use hardware caps. 0 = use hardware srgb. 1 = use shader srgb(software lookup)");

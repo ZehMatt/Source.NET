@@ -49,6 +49,8 @@ out vec4 vs_ProjPos_WrinkleWeight;
 //-----------------------------------------------------------------------------
 // Main shader entry point
 //-----------------------------------------------------------------------------
+#include "common_clipplanes_gl460.vs"
+
 void main()
 {
     vec4 vPosition = vec4(v_Position, 1.0);
@@ -73,6 +75,7 @@ void main()
     // Transform into projection space
     vec4 vProjPos = projectionMatrix * viewMatrix * vec4(worldPos, 1.0);
     gl_Position = vProjPos;
+    WriteUserClipDistances(gl_Position);
 
     vs_ProjPos_WrinkleWeight.xyz = vProjPos.xyz;
     vs_ProjPos_WrinkleWeight.w = flWrinkleWeight;

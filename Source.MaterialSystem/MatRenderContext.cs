@@ -8,6 +8,7 @@ using Source.Common.Utilities;
 
 using System.Numerics;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 
 namespace Source.MaterialSystem;
 
@@ -317,6 +318,15 @@ public class MatRenderContext : IMatRenderContextInternal
 	bool DirtyViewProjState;
 	bool EnableClippingValue;
 	MaterialHeightClipMode HeightClipMode;
+	float HeightClipZ;
+
+	struct PlaneStackElement
+	{
+		public InlineArray4<float> Values;
+		public bool Hack_IsHeightClipPlane;
+	}
+
+	readonly List<PlaneStackElement> CustomClipPlanes = [];
 
 	public bool EnableClipping(bool enable) {
 		if (enable != EnableClippingValue) {
@@ -329,8 +339,110 @@ public class MatRenderContext : IMatRenderContextInternal
 	public MaterialHeightClipMode GetHeightClipMode() => HeightClipMode;
 
 	public void SetHeightClipMode(MaterialHeightClipMode heightClipMode) {
-		if (HeightClipMode != heightClipMode)
+		if (HeightClipMode != heightClipMode) {
 			HeightClipMode = heightClipMode;
+			UpdateHeightClipUserClipPlane();
+		}
+	}
+
+	public void SetHeightClipZ(float z) {
+		if (z != HeightClipZ) {
+			HeightClipZ = z;
+			UpdateHeightClipUserClipPlane();
+		}
+	}
+
+	void UpdateHeightClipUserClipPlane() {
+		PlaneStackElement pse = default;
+		pse.Hack_IsHeightClipPlane = true;
+
+		int existingHeightClipPlaneIndex;
+		for (existingHeightClipPlaneIndex = CustomClipPlanes.Count; --existingHeightClipPlaneIndex >= 0;) {
+			if (CustomClipPlanes[existingHeightClipPlaneIndex].Hack_IsHeightClipPlane)
+				break;
+		}
+
+		switch (HeightClipMode) {
+			case MaterialHeightClipMode.Disable:
+				if (existingHeightClipPlaneIndex != -1)
+					CustomClipPlanes.RemoveAt(existingHeightClipPlaneIndex);
+				break;
+			case MaterialHeightClipMode.RenderAboveHeight:
+				pse.Values[0] = 0.0f;
+				pse.Values[1] = 0.0f;
+				pse.Values[2] = 1.0f;
+				pse.Values[3] = HeightClipZ;
+				if (existingHeightClipPlaneIndex != -1)
+					CustomClipPlanes[existingHeightClipPlaneIndex] = pse;
+				else
+					CustomClipPlanes.Add(pse);
+				break;
+			case MaterialHeightClipMode.RenderBelowHeight:
+				pse.Values[0] = 0.0f;
+				pse.Values[1] = 0.0f;
+				pse.Values[2] = -1.0f;
+				pse.Values[3] = -HeightClipZ;
+				if (existingHeightClipPlaneIndex != -1)
+					CustomClipPlanes[existingHeightClipPlaneIndex] = pse;
+				else
+					CustomClipPlanes.Add(pse);
+				break;
+		}
+
+		ApplyCustomClipPlanes();
+	}
+
+	public void PushCustomClipPlane(ReadOnlySpan<float> plane) {
+		PlaneStackElement pse = default;
+		plane[..4].CopyTo(pse.Values);
+		pse.Hack_IsHeightClipPlane = false;
+		CustomClipPlanes.Add(pse);
+		ApplyCustomClipPlanes();
+	}
+
+	public void PopCustomClipPlane() {
+		Assert(CustomClipPlanes.Count != 0);
+
+		int i;
+		for (i = CustomClipPlanes.Count; --i >= 0;) {
+			if (!CustomClipPlanes[i].Hack_IsHeightClipPlane) {
+				CustomClipPlanes.RemoveAt(i);
+				break;
+			}
+		}
+		Assert(i != -1);
+		ApplyCustomClipPlanes();
+	}
+
+	void ApplyCustomClipPlanes() {
+		int maxClipPlanes = materials.HardwareConfig.MaxUserClipPlanes();
+		int customPlanes = EnableClippingValue ? CustomClipPlanes.Count : 0;
+
+		float fakePlaneVal = BitConverter.Int32BitsToSingle(unchecked((int)0xFFFFFFFF));
+		ReadOnlySpan<float> fakePlane = [fakePlaneVal, fakePlaneVal, fakePlaneVal, fakePlaneVal];
+
+		SyncMatrices();
+
+		Span<PlaneStackElement> planes = CollectionsMarshal.AsSpan(CustomClipPlanes);
+		if (maxClipPlanes >= customPlanes) {
+			int i;
+			for (i = 0; i < customPlanes; ++i) {
+				shaderAPI.SetClipPlane(i, planes[i].Values);
+				shaderAPI.EnableClipPlane(i, true);
+			}
+			for (; i < maxClipPlanes; ++i) {
+				shaderAPI.EnableClipPlane(i, false);
+				shaderAPI.SetClipPlane(i, fakePlane);
+			}
+		}
+		else {
+			int customPlaneOffset = customPlanes - maxClipPlanes;
+
+			for (int i = customPlaneOffset; i < customPlanes; ++i) {
+				shaderAPI.SetClipPlane(i % maxClipPlanes, planes[i].Values);
+				shaderAPI.EnableClipPlane(i % maxClipPlanes, true);
+			}
+		}
 	}
 
 	public bool InFlashlightMode() {
@@ -1085,19 +1197,11 @@ public class MatRenderContext : IMatRenderContextInternal
 		throw new NotImplementedException("Incomplete port of IMatRenderContext");
 	}
 
-	public void PopCustomClipPlane() {
-		throw new NotImplementedException("Incomplete port of IMatRenderContext");
-	}
-
 	public void PopDeformation() {
 		throw new NotImplementedException("Incomplete port of IMatRenderContext");
 	}
 
 	public void PopSelectionName() {
-		throw new NotImplementedException("Incomplete port of IMatRenderContext");
-	}
-
-	public void PushCustomClipPlane(ReadOnlySpan<float> plane) {
 		throw new NotImplementedException("Incomplete port of IMatRenderContext");
 	}
 
@@ -1176,10 +1280,6 @@ public class MatRenderContext : IMatRenderContextInternal
 		Assert(float.IsFinite(monoscale));
 		if (float.IsFinite(monoscale))
 			GoalToneMapScale = monoscale;
-	}
-
-	public void SetHeightClipZ(float z) {
-		throw new NotImplementedException("Incomplete port of IMatRenderContext");
 	}
 
 	public void SetIntRenderingParameter(int parm_number, int value) => shaderAPI.SetIntRenderingParameter(parm_number, value);

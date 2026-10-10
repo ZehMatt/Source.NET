@@ -79,6 +79,8 @@ out vec4 vs_WorldPos_ProjPosZ;
 out vec3 vs_SeamlessWeights;		// x y z projection weights
 #endif
 
+#include "common_clipplanes_gl460.vs"
+
 void main()
 {
     bool bDynamicLight = DYNAMIC_LIGHT != 0;
@@ -114,6 +116,7 @@ void main()
     // Transform into projection space
     vec4 vProjPos = projectionMatrix * viewMatrix * vec4(worldPos, 1.0);
     gl_Position = vProjPos;
+    WriteUserClipDistances(gl_Position);
 
     vs_ProjPos = vProjPos;
     vs_WorldPos_ProjPosZ.xyz = worldPos.xyz;

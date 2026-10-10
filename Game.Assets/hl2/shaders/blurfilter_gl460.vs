@@ -24,9 +24,12 @@ vec2 FlipV(vec2 uv)
     return vec2(uv.x, 1.0 - uv.y);
 }
 
+#include "common_clipplanes_gl460.vs"
+
 void main()
 {
     gl_Position = vec4(v_Position, 1.0);
+    WriteUserClipDistances(gl_Position);
 
     vs_CoordTap0    = FlipV(v_TexCoord);
     vs_CoordTap1    = FlipV(v_TexCoord + vsTapOffs0);

@@ -42,6 +42,8 @@ centroid out vec4 vs_LightmapTexCoord1And2;
 centroid out vec4 vs_LightmapTexCoord3;
 #endif
 
+#include "common_clipplanes_gl460.vs"
+
 void main()
 {
     vec3 vObjNormal = v_Normal;
@@ -49,6 +51,7 @@ void main()
     vec3 vWorldPos = (modelMatrix * vec4(v_Position, 1.0)).xyz;
     vec4 vProjPos = projectionMatrix * viewMatrix * vec4(vWorldPos, 1.0);
     gl_Position = vProjPos;
+    WriteUserClipDistances(gl_Position);
     vs_ProjPos = vProjPos;
 
     vec2 vReflectPos;

@@ -28,9 +28,12 @@ out vec2 vs_BaseTexCoord10;
 out vec2 vs_BaseTexCoord11;
 out vec2 vs_BaseTexCoord_In_Pixels;
 
+#include "common_clipplanes_gl460.vs"
+
 void main()
 {
     gl_Position = projectionMatrix * viewMatrix * modelMatrix * vec4(v_Position, 1.0);
+    WriteUserClipDistances(gl_Position);
 
     vec4 vTexCoordInput = vec4(v_TexCoord0.x, v_TexCoord0.y, 0.0, 1.0);
     vec2 vTexCoord;

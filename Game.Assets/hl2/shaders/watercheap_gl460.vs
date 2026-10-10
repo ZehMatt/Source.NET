@@ -30,6 +30,8 @@ out mat3 vs_TangentSpaceTranspose;
 out vec4 vs_Refract_W_ProjZ;
 out vec4 vs_ExtraBumpTexCoord;
 
+#include "common_clipplanes_gl460.vs"
+
 void main()
 {
     vec3 vObjNormal = v_Normal;
@@ -37,6 +39,7 @@ void main()
     vec3 worldPos = (modelMatrix * vec4(v_Position, 1.0)).xyz;
     vec4 projPos = projectionMatrix * viewMatrix * vec4(worldPos, 1.0);
     gl_Position = projPos;
+    WriteUserClipDistances(gl_Position);
 
     vs_Refract_W_ProjZ = vec4(0.0);
 #if BLEND

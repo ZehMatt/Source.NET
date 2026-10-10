@@ -81,6 +81,8 @@ out mat3 vs_TangentSpaceTranspose;
 out vec4 vs_Color;									// in seamless, r g b = blend weights
 out float vs_VertexBlendX;
 
+#include "common_clipplanes_gl460.vs"
+
 void main()
 {
 #if SEAMLESS
@@ -100,6 +102,7 @@ void main()
 
     vec4 vProjPos = projectionMatrix * viewMatrix * vec4(worldPos, 1.0);
     gl_Position = vProjPos;
+    WriteUserClipDistances(gl_Position);
 
     vs_WorldPos_ProjPosZ = vec4(worldPos, vProjPos.z);
 

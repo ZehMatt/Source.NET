@@ -46,7 +46,8 @@ public enum UniformBufferBindingLocation
 	VertexShaderConstants = 5,
 	/// <summary><b>source_ps_constants</b>: Pixel shader float constants.</summary>
 	PixelShaderConstants = 6,
-	Count = 7
+	UserClipPlanes = 7,
+	Count = 8
 }
 
 public static class UniformBufferBindings
@@ -253,6 +254,47 @@ public class ShaderAPIGl46 : IShaderAPI, IShaderDevice, IDebugTextureInfo
 		glObjectLabel(GL_BUFFER, uboPixelConstants, "ShaderAPI Pixel Shader Constants UBO");
 		glNamedBufferData(uboPixelConstants, sizeof(float) * NUM_PIXEL_SHADER_CONSTANTS * 4, null, GL_DYNAMIC_DRAW);
 		UniformBufferBindings.Bind(UniformBufferBindingLocation.PixelShaderConstants, uboPixelConstants);
+
+		uboClipPlanes = glCreateBuffer();
+		glObjectLabel(GL_BUFFER, uboClipPlanes, "ShaderAPI User Clip Planes UBO");
+		glNamedBufferData(uboClipPlanes, sizeof(Vector4) * Gl46.HardwareConfig.MAXUSERCLIPPLANES, null, GL_DYNAMIC_DRAW);
+		UniformBufferBindings.Bind(UniformBufferBindingLocation.UserClipPlanes, uboClipPlanes);
+	}
+
+	uint uboClipPlanes;
+	int UserClipPlaneEnabled;
+	int UserClipPlaneChanged;
+	readonly Vector4[] UserClipPlaneWorld = new Vector4[Gl46.HardwareConfig.MAXUSERCLIPPLANES];
+	readonly Vector4[] UserClipPlaneProj = new Vector4[Gl46.HardwareConfig.MAXUSERCLIPPLANES];
+
+	private void MarkAllUserClipPlanesDirty() {
+		UserClipPlaneChanged |= (1 << Gl46.HardwareConfig.MAXUSERCLIPPLANES) - 1;
+	}
+
+	private unsafe void CommitUserClipPlanes() {
+		if ((UserClipPlaneChanged & UserClipPlaneEnabled & ((1 << Gl46.HardwareConfig.MAXUSERCLIPPLANES) - 1)) == 0)
+			return;
+
+		Matrix4x4 worldToProjectionInvTrans = Matrices[(int)MaterialMatrixMode.View] * Matrices[(int)MaterialMatrixMode.Projection];
+		Matrix4x4.Invert(worldToProjectionInvTrans, out worldToProjectionInvTrans);
+		worldToProjectionInvTrans = Matrix4x4.Transpose(worldToProjectionInvTrans);
+
+		for (int i = 0; i < Gl46.HardwareConfig.MAXUSERCLIPPLANES; ++i) {
+			if ((UserClipPlaneEnabled & (1 << i)) == 0)
+				continue;
+
+			if ((UserClipPlaneChanged & (1 << i)) == 0)
+				continue;
+
+			UserClipPlaneChanged &= ~(1 << i);
+
+			Vector4 clipPlaneProj = Vector4.Transform(UserClipPlaneWorld[i], worldToProjectionInvTrans);
+
+			if (clipPlaneProj != UserClipPlaneProj[i]) {
+				glNamedBufferSubData(uboClipPlanes, i * sizeof(Vector4), sizeof(Vector4), &clipPlaneProj);
+				UserClipPlaneProj[i] = clipPlaneProj;
+			}
+		}
 	}
 
 	private void AcquireInternalRenderTargets() {
@@ -931,6 +973,8 @@ public class ShaderAPIGl46 : IShaderAPI, IShaderDevice, IDebugTextureInfo
 
 		CommitVertexShaderLighting();
 
+		if (UserClipPlaneEnabled != 0)
+			CommitUserClipPlanes();
 	}
 
 	[Flags]
@@ -1594,6 +1638,9 @@ public class ShaderAPIGl46 : IShaderAPI, IShaderDevice, IDebugTextureInfo
 			CacheWorldSpaceCameraPosition();
 			UpdateVertexShaderFogParams();
 		}
+
+		if (currentMode == MaterialMatrixMode.View || currentMode == MaterialMatrixMode.Projection)
+			MarkAllUserClipPlanesDirty();
 	}
 
 	public void GetMatrix(MaterialMatrixMode matrixMode, out Matrix4x4 dst) {
@@ -3124,7 +3171,18 @@ public class ShaderAPIGl46 : IShaderAPI, IShaderDevice, IDebugTextureInfo
 	}
 
 	public void EnableClipPlane(int index, bool bEnable) {
-		throw new NotImplementedException("Incomplete port of IShaderAPI");
+		Assert(index < Gl46.HardwareConfig.MAXUSERCLIPPLANES && index >= 0);
+		if (((UserClipPlaneEnabled & (1 << index)) != 0) != bEnable) {
+			FlushBufferedPrimitives();
+			if (bEnable) {
+				UserClipPlaneEnabled |= 1 << index;
+				glEnable(GL_CLIP_DISTANCE0 + index);
+			}
+			else {
+				UserClipPlaneEnabled &= ~(1 << index);
+				glDisable(GL_CLIP_DISTANCE0 + index);
+			}
+		}
 	}
 
 	public void EnableFastClip(bool enable) {
@@ -3356,7 +3414,16 @@ public class ShaderAPIGl46 : IShaderAPI, IShaderDevice, IDebugTextureInfo
 	}
 
 	public void SetClipPlane(int index, ReadOnlySpan<float> plane) {
-		throw new NotImplementedException("Incomplete port of IShaderAPI");
+		Assert(index < Gl46.HardwareConfig.MAXUSERCLIPPLANES && index >= 0);
+
+		Vector4 worldPlane = new(plane[0], plane[1], plane[2], -plane[3]);
+
+		if (worldPlane != UserClipPlaneWorld[index]) {
+			FlushBufferedPrimitives();
+
+			UserClipPlaneChanged |= 1 << index;
+			UserClipPlaneWorld[index] = worldPlane;
+		}
 	}
 
 	public void SetDisallowAccess(bool access) {
