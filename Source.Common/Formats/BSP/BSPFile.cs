@@ -528,10 +528,14 @@ public struct BSPMSurfaceLighting
 	public nint SurfNum;
 
 	public Span<ColorRGBExp32> AvgLightColor(int lightStyleIndex) {
-		if (lightStyleIndex < 0 || lightStyleIndex >= (Samples.Length))
+		if (!MemoryMarshal.TryGetArray<ColorRGBExp32>(Samples, out ArraySegment<ColorRGBExp32> segment))
+			throw new InvalidOperationException();
+
+		int index = segment.Offset - (lightStyleIndex + 1);
+		if (index < 0)
 			throw new IndexOutOfRangeException();
 
-		return Samples.Span![(Samples.Length - 1 - lightStyleIndex)..];
+		return segment.Array.AsSpan(index);
 	}
 
 	// Lightmap info
