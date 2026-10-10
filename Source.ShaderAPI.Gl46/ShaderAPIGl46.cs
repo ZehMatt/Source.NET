@@ -1979,6 +1979,8 @@ public class ShaderAPIGl46 : IShaderAPI, IShaderDevice, IDebugTextureInfo
 		bool managed = (creationFlags & CreateTextureFlags.Managed) != 0;
 		bool isDepthBuffer = (creationFlags & CreateTextureFlags.DepthBuffer) != 0;
 		bool isDynamic = (creationFlags & CreateTextureFlags.Dynamic) != 0;
+		if (isRenderTarget && !isDepthBuffer && SupportsSRGBDecode())
+			creationFlags |= CreateTextureFlags.SRGB;
 		bool isSRGB = (creationFlags & CreateTextureFlags.SRGB) != 0;
 
 		InternalTextureFlags setFlags = 0;
@@ -2593,12 +2595,19 @@ public class ShaderAPIGl46 : IShaderAPI, IShaderDevice, IDebugTextureInfo
 		int srcY0 = srcHeight - (src.Y + src.Height);
 		int dstY0 = tex.Height - (dst.Y + dst.Height);
 
+		bool srgbWriteEnabled = !boardStateValid || lastBoardState.SRGBWriteEnable;
+		if (srgbWriteEnabled)
+			glToggle(GL_FRAMEBUFFER_SRGB, false);
+
 		glNamedFramebufferTexture(copyFBO, GL_COLOR_ATTACHMENT0, GetGL46Texture(textureHandle), 0);
 		glBlitNamedFramebuffer(UsingTextureRenderTarget ? renderFBO : 0, copyFBO,
 			src.X, srcY0, src.X + src.Width, srcY0 + src.Height,
 			dst.X, dstY0, dst.X + dst.Width, dstY0 + dst.Height,
 			GL_COLOR_BUFFER_BIT, GL_LINEAR);
 		glNamedFramebufferTexture(copyFBO, GL_COLOR_ATTACHMENT0, 0, 0);
+
+		if (boardStateValid && lastBoardState.SRGBWriteEnable)
+			glToggle(GL_FRAMEBUFFER_SRGB, true);
 	}
 
 	public IMesh CreateStaticMesh(VertexFormat format, ReadOnlySpan<char> textureGroup, IMaterial? material) {
