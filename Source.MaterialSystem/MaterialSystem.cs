@@ -952,6 +952,7 @@ public class MaterialSystem : IMaterialSystemInternal, IShaderUtil
 
 	void ReleaseShaderObjects() {
 		// todo
+		ReleaseStandardTextures();
 		for (int i = 0; i < ReleaseFunc.Count; i++)
 			ReleaseFunc[i]();
 	}
@@ -967,6 +968,7 @@ public class MaterialSystem : IMaterialSystemInternal, IShaderUtil
 		}
 
 		TextureSystem.RestoreRenderTargets();
+		AllocateStandardTextures();
 		Restore?.Invoke();
 		for (int i = 0; i < RestoreFunc.Count; i++)
 			RestoreFunc[i]((RestoreChangeFlags)changeFlags);
@@ -1244,7 +1246,55 @@ public class MaterialSystem : IMaterialSystemInternal, IShaderUtil
 	}
 
 	public void ReloadMaterials(ReadOnlySpan<char> subString = default) {
-		// todo
+		bool vertexFormatChanged = false;
+		if (subString.IsEmpty) {
+			vertexFormatChanged = true;
+			UncacheAllMaterials();
+			CacheUsedMaterials();
+		}
+		else {
+			const char multiDelim = '*';
+			List<string> searchItems = [];
+			if (subString.Contains(multiDelim))
+				searchItems.AddRange(new string(subString).Split(multiDelim));
+
+			foreach (IMaterialInternal material in (IMaterialInternal[])[.. MaterialDict]) {
+				if (material.GetReferenceCount() <= 0)
+					continue;
+
+				ReadOnlySpan<char> matName = material.GetName();
+
+				if (searchItems.Count > 1) {
+					bool matched = false;
+					for (int k = 0; !matched && k < searchItems.Count; ++k)
+						if (matName.Contains(searchItems[k], StringComparison.OrdinalIgnoreCase))
+							matched = true;
+
+					if (!matched)
+						continue;
+				}
+				else if (!matName.Contains(subString, StringComparison.OrdinalIgnoreCase))
+					continue;
+
+				if (!material.IsPrecached()) {
+					if (material.IsPrecachedVars())
+						material.Uncache();
+				}
+				else {
+					VertexFormat oldVertexFormat = material.GetVertexFormat();
+					material.Uncache();
+					material.Precache();
+					material.ReloadTextures();
+					if (material.GetVertexFormat() != oldVertexFormat)
+						vertexFormatChanged = true;
+				}
+			}
+		}
+
+		if (vertexFormatChanged) {
+			ReleaseShaderObjects();
+			RestoreShaderObjects(null, (int)RestoreChangeFlags.VertexFormatChanged);
+		}
 	}
 
 	void RecomputeAllStateSnapshots() {
@@ -1309,7 +1359,11 @@ public class MaterialSystem : IMaterialSystemInternal, IShaderUtil
 	}
 
 	public void CacheUsedMaterials() {
-		throw new NotImplementedException("Incomplete port of IMaterialSystem");
+		foreach (IMaterialInternal material in (IMaterialInternal[])[.. MaterialDict]) {
+			Assert(material.GetReferenceCount() >= 0);
+			if (material.GetReferenceCount() > 0)
+				material.Precache();
+		}
 	}
 
 	public void ClearBuffers(bool clearColor, bool clearDepth, bool clearStencil = false) {
@@ -1492,11 +1546,12 @@ public class MaterialSystem : IMaterialSystemInternal, IShaderUtil
 	}
 
 	public void ReacquireResources() {
-		throw new NotImplementedException("Incomplete port of IMaterialSystem");
+		ShaderDevice.ReacquireResources();
 	}
 
 	public void ReleaseResources() {
-		throw new NotImplementedException("Incomplete port of IMaterialSystem");
+		ShaderAPI.FlushBufferedPrimitives();
+		ShaderDevice.ReleaseResources();
 	}
 
 	public void ReloadFilesInList(IFileList filesToReload) {
