@@ -1,5 +1,6 @@
 ﻿using Source.Common;
 using Source.Common.Bitmap;
+using Source.Common.Commands;
 using Source.Common.MaterialSystem;
 using Source.Common.Mathematics;
 using Source.Common.ShaderAPI;
@@ -336,9 +337,49 @@ public class MatRenderContext : IMatRenderContextInternal
 		return FlashlightEnable;
 	}
 
+	Vector3 LastSetToneMapScale = new(1, 1, 1);
 	float CurToneMapScale = 1.0f;
+	float GoalToneMapScale = 1.0f;
+	TimeUnit_t FrameTime;
 
-	public void TurnOnToneMapping() => SetToneMappingScaleLinear(new(CurToneMapScale, CurToneMapScale, CurToneMapScale));
+	static readonly ConVar mat_accelerate_adjust_exposure_down = new("mat_accelerate_adjust_exposure_down", "3.0", FCvar.Cheat);
+	static readonly ConVar mat_hdr_manual_tonemap_rate = new("mat_hdr_manual_tonemap_rate", "1.0");
+	static readonly ConVar mat_tonemap_algorithm = new("mat_tonemap_algorithm", "1", FCvar.Cheat, "0 = Original Algorithm 1 = New Algorithm");
+
+	public void TurnOnToneMapping() {
+		if ((materials.HardwareConfig.GetHDRType() != HDRType.None) && (FrameTime > 0.0)) {
+			TimeUnit_t elapsedTime = FrameTime;
+			float goalScale = GoalToneMapScale;
+			float rate = mat_hdr_manual_tonemap_rate.GetFloat();
+
+			if (mat_tonemap_algorithm.GetInt() == 1)
+				rate *= 2.0f;
+
+			if (rate == 0.0f)
+				CurToneMapScale = goalScale;
+			else {
+				if (goalScale < CurToneMapScale) {
+					float accExposureAdjust = mat_accelerate_adjust_exposure_down.GetFloat();
+					rate = Math.Min(accExposureAdjust * rate, MathLib.Lerp(rate, accExposureAdjust * rate, 0.0f, 1.5f, CurToneMapScale - goalScale));
+				}
+
+				float rateTimesTime = (float)(rate * elapsedTime);
+				if (mat_tonemap_algorithm.GetInt() == 1)
+					rateTimesTime = Math.Min(rateTimesTime, (1.0f / 16.0f) * 0.25f);
+
+				float alpha = Math.Max(0.0f, Math.Min(1.0f, rateTimesTime));
+				CurToneMapScale = (goalScale * alpha) + (CurToneMapScale * (1.0f - alpha));
+
+				if (!float.IsFinite(CurToneMapScale)) {
+					Assert(false);
+					CurToneMapScale = goalScale;
+				}
+			}
+
+			SetToneMappingScaleLinear(new(CurToneMapScale, CurToneMapScale, CurToneMapScale));
+			LastSetToneMapScale = new(CurToneMapScale, CurToneMapScale, CurToneMapScale);
+		}
+	}
 
 	public void SetToneMappingScaleLinear(in Vector3 scale) => shaderAPI.SetToneMappingScaleLinear(in scale);
 
@@ -350,7 +391,7 @@ public class MatRenderContext : IMatRenderContextInternal
 	}
 
 	public void SetFrameTime(double frameTime) {
-
+		FrameTime = frameTime;
 	}
 
 	public void SwapBuffers() {
@@ -960,7 +1001,10 @@ public class MatRenderContext : IMatRenderContextInternal
 	}
 
 	public Vector3 GetToneMappingScaleLinear() {
-		throw new NotImplementedException("Incomplete port of IMatRenderContext");
+		if (materials.HardwareConfig.GetHDRType() == HDRType.None)
+			return new(1, 1, 1);
+		else
+			return LastSetToneMapScale;
 	}
 
 	public void GetWorldSpaceCameraVectors(out Vector3 forward, out Vector3 right, out Vector3 up) {
@@ -1094,7 +1138,10 @@ public class MatRenderContext : IMatRenderContextInternal
 	public void ResetOcclusionQueryObject(OcclusionQueryObjectHandle_t handle) => materials.OcclusionQueryMgr.ResetOcclusionQueryObject(handle);
 
 	public void ResetToneMappingScale(float monoscale) {
-		throw new NotImplementedException("Incomplete port of IMatRenderContext");
+		CurToneMapScale = monoscale;
+		SetToneMappingScaleLinear(new(CurToneMapScale, CurToneMapScale, CurToneMapScale));
+		LastSetToneMapScale = new(CurToneMapScale, CurToneMapScale, CurToneMapScale);
+		GoalToneMapScale = 1;
 	}
 
 	public void Rotate(float angle, float x, float y, float z) {
@@ -1124,7 +1171,9 @@ public class MatRenderContext : IMatRenderContextInternal
 	}
 
 	public void SetGoalToneMappingScale(float monoscale) {
-		throw new NotImplementedException("Incomplete port of IMatRenderContext");
+		Assert(float.IsFinite(monoscale));
+		if (float.IsFinite(monoscale))
+			GoalToneMapScale = monoscale;
 	}
 
 	public void SetHeightClipZ(float z) {
