@@ -801,9 +801,30 @@ public class ModelLoader(IFileSystem fileSystem, Host Host,
 
 		EnableHDR(enableHDR);
 
+		Map_CheckFeatureFlags();
+
 		MapLoadHelper.Shutdown();
 
 		return hasHDR;
+	}
+
+	internal static bool g_bLoadedMapHasBakedPropLighting = false;
+	internal static bool g_bBakedPropLightingNoSeparateHDR = false;
+
+	void Map_CheckFeatureFlags() {
+		g_bLoadedMapHasBakedPropLighting = false;
+		g_bBakedPropLightingNoSeparateHDR = false;
+
+		if (MapLoadHelper.GetLumpSize(LumpIndex.MapFlags) > 0) {
+			MapLoadHelper lh = new(LumpIndex.MapFlags);
+			BSPDFlagsLump flagsLump = lh.LoadLumpData<BSPDFlagsLump>()[0];
+
+			g_bLoadedMapHasBakedPropLighting =
+				(flagsLump.LevelFlags & LevelFlags.BakedStaticPropLightingNonHDR) != 0 ||
+				(flagsLump.LevelFlags & LevelFlags.BakedStaticPropLightingHDR) != 0;
+			g_bBakedPropLightingNoSeparateHDR =
+				(flagsLump.LevelFlags & LevelFlags.BakedStaticPropLightingHDR) == 0;
+		}
 	}
 
 	private void Map_LoadModel(Model mod) {

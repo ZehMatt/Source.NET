@@ -304,7 +304,14 @@ public struct BSPDHeader
 /// </summary>
 public struct BSPDFlagsLump
 {
-	public uint LevelFlags;
+	public LevelFlags LevelFlags;
+}
+
+[Flags]
+public enum LevelFlags : uint
+{
+	BakedStaticPropLightingNonHDR = 0x00000001,
+	BakedStaticPropLightingHDR = 0x00000002,
 }
 
 /// <summary>
