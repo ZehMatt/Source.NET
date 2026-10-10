@@ -774,6 +774,38 @@ public class ModelLoader(IFileSystem fileSystem, Host Host,
 		data = lh.LoadLumpData<T>();
 	}
 
+	bool MapHasHDRLighting;
+	public bool LastLoadedMapHasHDRLighting() => MapHasHDRLighting;
+
+	void EnableHDR(bool enable) {
+		if (materialSystemHardwareConfig.GetHDREnabled() == enable)
+			return;
+
+		materialSystemHardwareConfig.SetHDREnabled(enable);
+
+		MatSysInterface.UpdateMaterialSystemConfig();
+
+		materialSystem.ReleaseResources();
+		materialSystem.ReacquireResources();
+	}
+
+	bool Map_CheckForHDR(Model mod, ReadOnlySpan<char> loadName) {
+		MapLoadHelper.Init(mod, loadName);
+
+		bool hasHDR = MapLoadHelper.GetLumpSize(LumpIndex.LightingHDR) > 0 &&
+			MapLoadHelper.GetLumpSize(LumpIndex.WorldLightsHDR) > 0;
+		if (MapLoadHelper.MapHeader.Version >= 20 && MapLoadHelper.GetLumpSize(LumpIndex.LeafAmbientLightingHDR) == 0)
+			hasHDR = false;
+
+		bool enableHDR = hasHDR && mat_hdr_level.GetInt() >= 2;
+
+		EnableHDR(enableHDR);
+
+		MapLoadHelper.Shutdown();
+
+		return hasHDR;
+	}
+
 	private void Map_LoadModel(Model mod) {
 		MapLoadCount++;
 
@@ -790,7 +822,7 @@ public class ModelLoader(IFileSystem fileSystem, Host Host,
 		mod.Brush.RenderHandle = 0;
 
 		Common.TimestampedLog("  Map_CheckForHDR");
-		// todo
+		MapHasHDRLighting = Map_CheckForHDR(mod, LoadNameSliced());
 
 		Common.TimestampedLog("  CM_LoadMap");
 		CM.LoadMap(mod.StrName, false, out uint checksum);

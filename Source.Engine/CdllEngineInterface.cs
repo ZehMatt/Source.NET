@@ -533,7 +533,7 @@ public class EngineClient(Cbuf Cbuf, Scr Scr, Con Con, Key Key, IGame game, Host
 	}
 
 	public bool MapHasHDRLighting() {
-		throw new NotImplementedException();
+		return modelloader.LastLoadedMapHasHDRLighting();
 	}
 
 	public int GetAppID() {

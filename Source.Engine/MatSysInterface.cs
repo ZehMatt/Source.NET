@@ -47,6 +47,7 @@ public static class MatSysVars
 	public static readonly ConVar r_waterforcereflectentities = new("r_waterforcereflectentities", "0");
 	public static readonly ConVar mat_depthbias_normal = new("mat_depthbias_normal", "0.0", FCvar.Cheat);
 	public static readonly ConVar mat_show_ab_hdr = new("mat_show_ab_hdr", "0");
+	public static readonly ConVar mat_hdr_level = new("mat_hdr_level", "2", FCvar.Archive, "Set to 0 for no HDR, 1 for LDR+bloom on HDR maps, and 2 for full HDR on HDR maps.");
 }
 
 public struct MaterialList
