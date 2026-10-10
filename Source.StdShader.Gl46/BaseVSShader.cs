@@ -1,3 +1,4 @@
+using Source.Common.Bitmap;
 using Source.Common.Commands;
 using Source.Common.MaterialSystem;
 using Source.Common.Mathematics;
@@ -579,7 +580,21 @@ public partial class BaseVSShader : BaseShader
 	}
 
 	internal bool IsHDREnabled() {
-		// throw new NotImplementedException();
+		HDRType hdrMode = HardwareConfig.GetHDRType();
+		switch (hdrMode) {
+			case HDRType.None:
+				return false;
+
+			case HDRType.Integer:
+				return true;
+
+			case HDRType.Float: {
+					ITexture? rt = ShaderAPI!.GetRenderTargetEx(0);
+					if (rt != null && rt.GetImageFormat() == ImageFormat.RGBA16161616F)
+						return true;
+				}
+				break;
+		}
 		return false;
 	}
 
