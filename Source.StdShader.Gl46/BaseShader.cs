@@ -320,6 +320,13 @@ public abstract class BaseShader : IShader
 			return ShaderAPI!.InFlashlightMode();
 	}
 
+	internal bool UsingEditor(IMaterialVar[] shaderParams) {
+		if (IsSnapshotting())
+			return IsFlag2Set(shaderParams, MaterialVarFlags2.UseEditor);
+		else
+			return ShaderAPI!.InEditorMode();
+	}
+
 	protected void EnableAlphaBlending(ShaderBlendFactor srcFactor, ShaderBlendFactor dstFactor) {
 		ShaderShadow!.EnableBlending(true);
 		ShaderShadow!.BlendFunc(srcFactor, dstFactor);
