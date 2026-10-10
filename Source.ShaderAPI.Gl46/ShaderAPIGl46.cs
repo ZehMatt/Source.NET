@@ -3475,7 +3475,7 @@ public class ShaderAPIGl46 : IShaderAPI, IShaderDevice, IDebugTextureInfo
 	}
 
 	public double CurrentTime() {
-		throw new NotImplementedException("Incomplete port of IShaderDynamicAPI");
+		return Platform.Time;
 	}
 
 	public void DisableTextureTransform(TextureStage textureStage) {
