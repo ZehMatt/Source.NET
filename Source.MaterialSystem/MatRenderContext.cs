@@ -1106,7 +1106,9 @@ public class MatRenderContext : IMatRenderContextInternal
 	}
 
 	public void PushRenderTargetAndViewport() {
-		throw new NotImplementedException("Incomplete port of IMatRenderContext");
+		RenderTargetStackElement top = RenderTargetStack.Top();
+		RenderTargetStack.Push(top);
+		CommitRenderTargetAndViewport();
 	}
 
 	public void PushSelectionName(int name) {
