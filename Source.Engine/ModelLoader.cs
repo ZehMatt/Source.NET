@@ -1870,7 +1870,10 @@ public class ModelLoader(IFileSystem fileSystem, Host Host,
 	}
 
 	private void Mod_LoadFaces() {
-		MapLoadHelper lh = new MapLoadHelper(LumpIndex.Faces);
+		LumpIndex faceLumpToLoad = LumpIndex.Faces;
+		if (materialSystemHardwareConfig.GetHDRType() != HDRType.None && MapLoadHelper.GetLumpSize(LumpIndex.FacesHDR) > 0)
+			faceLumpToLoad = LumpIndex.FacesHDR;
+		MapLoadHelper lh = new MapLoadHelper(faceLumpToLoad);
 		BSPDFace[] inFaces = lh.LoadLumpData<BSPDFace>();
 
 		int count = inFaces.Length;
