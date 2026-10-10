@@ -1684,13 +1684,23 @@ public struct RenderTargetStackElement
 	public ITexture? RenderTarget2;
 	public ITexture? RenderTarget3;
 
-	public readonly ITexture? this[int index] => index switch {
-		0 => RenderTarget0,
-		1 => RenderTarget1,
-		2 => RenderTarget2,
-		3 => RenderTarget3,
-		_ => null
-	};
+	public ITexture? this[int index] {
+		readonly get => index switch {
+			0 => RenderTarget0,
+			1 => RenderTarget1,
+			2 => RenderTarget2,
+			3 => RenderTarget3,
+			_ => null
+		};
+		set {
+			switch (index) {
+				case 0: RenderTarget0 = value; break;
+				case 1: RenderTarget1 = value; break;
+				case 2: RenderTarget2 = value; break;
+				case 3: RenderTarget3 = value; break;
+			}
+		}
+	}
 
 	public ITexture? DepthTexture;
 

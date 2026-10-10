@@ -1196,12 +1196,50 @@ public class MatRenderContext : IMatRenderContextInternal
 		throw new NotImplementedException("Incomplete port of IMatRenderContext");
 	}
 
-	public void SetRenderTarget(ITexture? texture) {
-		throw new NotImplementedException("Incomplete port of IMatRenderContext");
-	}
+	public void SetRenderTarget(ITexture? texture) => SetRenderTargetEx(0, texture);
 
-	public void SetRenderTargetEx(int renderTargetID, ITexture? texture) {
-		throw new NotImplementedException("Incomplete port of IMatRenderContext");
+	public void SetRenderTargetEx(int renderTargetID, ITexture? newTarget) {
+		Assert(RenderTargetStack.Count > 0);
+
+		ITexture? oldTarget = RenderTargetStack.Top()[renderTargetID];
+
+		RenderTargetStackElement newTOS = RenderTargetStack.Top();
+		newTOS[renderTargetID] = newTarget;
+		RenderTargetStack.Pop();
+		RenderTargetStack.Push(newTOS);
+
+		if (newTarget != oldTarget) {
+			if (newTarget == null) {
+				if (renderTargetID == 0) {
+					ActiveViewport.TopLeftX = 0;
+					ActiveViewport.TopLeftY = 0;
+					shaderAPI.GetBackBufferDimensions(out ActiveViewport.Width, out ActiveViewport.Height);
+					shaderAPI.SetViewports(new Span<ShaderViewport>(ref ActiveViewport));
+				}
+				shaderAPI.SetRenderTargetEx(renderTargetID);
+			}
+			else {
+				bool reset = true;
+				if (renderTargetID == 0) {
+					ActiveViewport.TopLeftX = 0;
+					ActiveViewport.TopLeftY = 0;
+					ActiveViewport.Width = newTarget.GetActualWidth();
+					ActiveViewport.Height = newTarget.GetActualHeight();
+					shaderAPI.SetViewports(new Span<ShaderViewport>(ref ActiveViewport));
+				}
+				if (newTarget is ITextureInternal texInt) {
+					reset = !texInt.SetRenderTarget(renderTargetID);
+					if (reset)
+						shaderAPI.SetRenderTargetEx(renderTargetID);
+				}
+
+				if (newTarget.GetImageFormat() == ImageFormat.RGBA16161616F)
+					shaderAPI.EnableLinearColorSpaceFrameBuffer(true);
+				else
+					shaderAPI.EnableLinearColorSpaceFrameBuffer(false);
+			}
+		}
+		CommitRenderTargetAndViewport();
 	}
 
 	public void SetResetable(ColorCorrectionHandle_t handle, bool resetable) {
