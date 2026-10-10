@@ -316,7 +316,7 @@ public class MatRenderContext : IMatRenderContextInternal
 	bool FlashlightEnable;
 	bool DirtyViewState;
 	bool DirtyViewProjState;
-	bool EnableClippingValue;
+	bool EnableClippingValue = true;
 	MaterialHeightClipMode HeightClipMode;
 	float HeightClipZ;
 
@@ -331,6 +331,8 @@ public class MatRenderContext : IMatRenderContextInternal
 	public bool EnableClipping(bool enable) {
 		if (enable != EnableClippingValue) {
 			EnableClippingValue = enable;
+			ApplyCustomClipPlanes();
+
 			return !enable;
 		}
 		return enable;
