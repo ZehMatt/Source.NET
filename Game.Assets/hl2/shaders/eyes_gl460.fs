@@ -7,7 +7,6 @@ in vec2 vs_IrisTexCoord;
 in vec2 vs_GlintTexCoord;
 in vec3 vs_Color;
 in vec4 vs_WorldPos_ProjPosZ;
-in vec4 vs_FogFactorW;
 
 layout(std140, binding = 6) uniform source_ps_constants {
     vec4 ps_const[256];
@@ -25,7 +24,6 @@ layout(binding = 2) uniform sampler2D GlintSampler;
 #define g_EyePos_SpecExponent	ps_const[11]
 #define g_FogParams				ps_const[12]
 
-#define fDilationFactor	cEyeScalars.x
 #define fGlintDamping	cEyeScalars.y
 
 void main()

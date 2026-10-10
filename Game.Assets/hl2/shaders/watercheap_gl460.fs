@@ -4,7 +4,6 @@
 // STATIC: "BLEND"						"0..1"
 // STATIC: "REFRACTALPHA"				"0..1"
 // STATIC: "HDRTYPE"					"0..2"
-// STATIC: "NORMAL_DECODE_MODE"			"0..0"
 
 // DYNAMIC: "HDRENABLED"				"0..1"
 // DYNAMIC: "PIXELFOGTYPE"				"0..1"
@@ -36,8 +35,6 @@ layout(binding = 2) uniform sampler2D RefractSampler;
 #define g_ReflectTint				ps_const[2]
 #define g_PixelFogParams			ps_const[3]
 
-#define g_CheapWaterStart			g_CheapWaterParams.x
-#define g_CheapWaterEnd				g_CheapWaterParams.y
 #define g_CheapWaterDeltaRecip		g_CheapWaterParams.z
 #define g_CheapWaterStartDivDelta	g_CheapWaterParams.w
 
@@ -51,15 +48,10 @@ void main()
     vec3 vNormal2 = texture(NormalMapSampler, vs_ExtraBumpTexCoord.zw).xyz;
     vNormal = 0.33 * (vNormal + vNormal1 + vNormal2);
 
-#if ( NORMAL_DECODE_MODE == NORM_DECODE_ATI2N )
-    vNormal.xy = vNormal.xy * 2.0 - 1.0;
-    vNormal.z = sqrt(1.0 - dot(vNormal.xy, vNormal.xy));
-#else
     vNormal = 2.0 * vNormal - 1.0;
-#endif
 
 #else
-    vec3 vNormal = DecompressNormal(NormalMapSampler, vs_NormalMapTexCoord, NORMAL_DECODE_MODE).xyz;
+    vec3 vNormal = DecompressNormal(NormalMapSampler, vs_NormalMapTexCoord, NORM_DECODE_NONE).xyz;
 #endif
 
     vec3 worldSpaceNormal = vs_TangentSpaceTranspose * vNormal;

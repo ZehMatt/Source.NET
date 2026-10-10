@@ -16,25 +16,10 @@ layout(std140, binding = 0) uniform source_matrices {
     mat4 modelMatrix;
 };
 
-layout(std140, binding = 2) uniform source_vertex_sharedUBO {
-    int numBones;
-    int lightCount;
-    int vertexSharedPad0;
-    int vertexSharedPad1;
-    vec4 lightEnabled;
-};
-
-layout(std140, binding = 4) uniform source_bone_matrices {
-    mat4 bones[256];
-};
-
 layout(std140, binding = 5) uniform source_vs_constants {
     vec4 vs_const[256];
 };
 
-const int VERTEX_SHADER_CAMERA_POS = 2;
-const int VERTEX_SHADER_AMBIENT_LIGHT = 21;
-const int VERTEX_SHADER_LIGHT_INFO = 27;
 const int SHADER_SPECIFIC_CONST_1 = 49;
 const int SHADER_SPECIFIC_CONST_3 = 51;
 

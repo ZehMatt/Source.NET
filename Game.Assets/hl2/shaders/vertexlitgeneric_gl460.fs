@@ -46,7 +46,6 @@ in vec3 vs_WorldVertToEyeVector;
 in vec3 vs_WorldSpaceNormal;
 in vec4 vs_ProjPos;
 in vec4 vs_WorldPos_ProjPosZ;
-in vec4 vs_FogFactorW;
 #if SEAMLESS_DETAIL || SEAMLESS_BASE
 in vec3 vs_SeamlessWeights;
 #endif
@@ -104,14 +103,9 @@ out vec4 fragColor;
 #define SOFT_MASK_MIN				g_DistanceAlphaParams.y
 
 #define g_OutlineColor				ps_const[8]
-#define OUTLINE_COLOR				g_OutlineColor
 
 // these are ordered this way for optimal ps20 swizzling
 #define g_OutlineParams				ps_const[9]
-#define OUTLINE_MIN_VALUE0			g_OutlineParams.x
-#define OUTLINE_MAX_VALUE1			g_OutlineParams.y
-#define OUTLINE_MAX_VALUE0			g_OutlineParams.z
-#define OUTLINE_MIN_VALUE1			g_OutlineParams.w
 
 #if DETAILTEXTURE
 #define g_DetailTint				ps_const[10].rgb
@@ -139,12 +133,6 @@ float CalcPixelFogFactorConst(float fPixelFogType, vec4 fogParams, float flEyePo
 }
 
 // Blend both types of Fog and lerp to get result
-vec3 BlendPixelFogConst(vec3 vShaderColor, float pixelFogFactor, vec3 vFogColor, float fPixelFogType)
-{
-    pixelFogFactor = mix(pixelFogFactor * pixelFogFactor, pixelFogFactor, fPixelFogType);
-    return mix(vShaderColor.rgb, vFogColor.rgb, pixelFogFactor);
-}
-
 vec4 FinalOutputConst(vec4 vShaderColor, float pixelFogFactor, float fPixelFogType, int iTONEMAP_SCALE_TYPE, float fWriteDepthToDestAlpha, float flProjZ)
 {
     vec4 result = vShaderColor;

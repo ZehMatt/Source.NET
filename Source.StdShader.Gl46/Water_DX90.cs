@@ -1,5 +1,4 @@
 using Source.Common;
-using Source.Common.Bitmap;
 using Source.Common.Commands;
 using Source.Common.MaterialSystem;
 using Source.Common.Mathematics;
@@ -198,7 +197,6 @@ public class Water_DX90 : BaseVSShader
 			pshIndex.Set("MULTITEXTURE", MathF.Abs(scroll1[0]) > 0.0f);
 			pshIndex.Set("BASETEXTURE", vars[(int)ShaderMaterialVars.BaseTexture].IsTexture());
 			pshIndex.Set("BLURRY_REFRACT", vars[BLURREFRACT].GetIntValue());
-			pshIndex.Set("NORMAL_DECODE_MODE", (int)NormalDecodeMode.None);
 			ShaderShadow.SetPixelShader("water", pshIndex.GetIndex());
 
 			ShaderShadow.EnableSRGBWrite(true);
@@ -316,7 +314,6 @@ public class Water_DX90 : BaseVSShader
 			pshIndex.Set("REFRACTALPHA", refraction);
 			pshIndex.Set("HDRTYPE", (int)HardwareConfig.GetHDRType());
 			pshIndex.Set("MULTITEXTURE", MathF.Abs(scroll1[0]) > 0.0f);
-			pshIndex.Set("NORMAL_DECODE_MODE", (int)NormalDecodeMode.None);
 			ShaderShadow.SetPixelShader("watercheap", pshIndex.GetIndex());
 
 			if (HardwareConfig.GetHDRType() != HDRType.None)

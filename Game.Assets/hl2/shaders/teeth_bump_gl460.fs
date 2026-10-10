@@ -10,7 +10,6 @@ in mat3 vs_TangentSpace;
 in vec4 vs_WorldPos_ProjPosZ;
 in vec2 vs_LightAtten01;
 in vec2 vs_LightAtten23;
-in vec4 vs_FogFactorW;
 
 layout(std140, binding = 6) uniform source_ps_constants {
     vec4 ps_const[256];
@@ -22,7 +21,6 @@ out vec4 fragColor;
 
 layout(binding = 0) uniform sampler2D BaseTextureSampler;
 layout(binding = 1) uniform sampler2D BumpTextureSampler;
-layout(binding = 2) uniform samplerCube NormalizeSampler;
 
 #define g_EyePos_SpecExponent	ps_const[11]
 #define g_FogParams				ps_const[12]

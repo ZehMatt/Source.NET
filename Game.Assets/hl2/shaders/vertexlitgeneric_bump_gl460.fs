@@ -25,7 +25,6 @@ in vec4 vs_WorldTangent;
 in vec4 vs_ProjPos;
 in vec4 vs_WorldPos_ProjPosZ;
 in vec3 vs_DetailTexCoord_Atten3;
-in vec4 vs_FogFactorW;
 
 layout(std140, binding = 6) uniform source_ps_constants {
     vec4 ps_const[256];
@@ -63,8 +62,6 @@ layout(binding = 0) uniform sampler2D BaseTextureSampler;
 layout(binding = 1) uniform samplerCube EnvmapSampler;
 layout(binding = 2) uniform sampler2D DetailSampler;
 layout(binding = 3) uniform sampler2D BumpmapSampler;
-layout(binding = 4) uniform sampler2D EnvmapMaskSampler;
-layout(binding = 5) uniform sampler2D NormalizeSampler;
 layout(binding = 6) uniform sampler2D RandRotSampler;			// RandomRotation sampler
 layout(binding = 7) uniform sampler2D FlashlightSampler;
 layout(binding = 8) uniform sampler2DShadow ShadowDepthSampler;	// Flashlight shadow depth map sampler
@@ -80,14 +77,6 @@ float CalcPixelFogFactorConst(float fPixelFogType, vec4 fogParams, float flEyePo
 }
 
 // Blend both types of Fog and lerp to get result
-vec3 BlendPixelFogConst(vec3 vShaderColor, float pixelFogFactor, vec3 vFogColor, float fPixelFogType)
-{
-    pixelFogFactor = clamp(pixelFogFactor, 0.0, 1.0);
-    vec3 fRangeResult = mix(vShaderColor.rgb, vFogColor.rgb, pixelFogFactor * pixelFogFactor); //squaring the factor will get the middle range mixing closer to hardware fog
-    vec3 fHeightResult = mix(vShaderColor.rgb, vFogColor.rgb, clamp(pixelFogFactor, 0.0, 1.0));
-    return mix(fRangeResult, fHeightResult, fPixelFogType);
-}
-
 vec4 FinalOutputConst(vec4 vShaderColor, float pixelFogFactor, float fPixelFogType, int iTONEMAP_SCALE_TYPE, float fWriteDepthToDestAlpha, float flProjZ)
 {
     vec4 result = vShaderColor;

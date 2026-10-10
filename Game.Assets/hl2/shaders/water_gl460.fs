@@ -5,7 +5,6 @@
 // STATIC: "REFRACT"					"0..1"
 // STATIC: "ABOVEWATER"					"0..1"
 // STATIC: "BLURRY_REFRACT"				"0..1"
-// STATIC: "NORMAL_DECODE_MODE"			"0..0"
 
 // DYNAMIC: "PIXELFOGTYPE"				"0..1"
 // DYNAMIC: "WRITE_DEPTH_TO_DESTALPHA"	"0..1"
@@ -63,16 +62,10 @@ void main()
     vec4 vNormal2 = texture(NormalSampler, vs_ExtraBumpTexCoord.zw);
     vNormal = 0.33 * (vNormal + vNormal1 + vNormal2);
 
-#if ( NORMAL_DECODE_MODE == NORM_DECODE_ATI2N )
-    vNormal.xy = vNormal.xy * 2.0 - 1.0;
-    vNormal.z = sqrt(1.0 - dot(vNormal.xy, vNormal.xy));
-    vNormal.a = 1.0;
-#else
     vNormal.xyz = 2.0 * vNormal.xyz - 1.0;
-#endif
 
 #else
-    vec4 vNormal = DecompressNormal(NormalSampler, vs_BumpTexCoord, NORMAL_DECODE_MODE);
+    vec4 vNormal = DecompressNormal(NormalSampler, vs_BumpTexCoord, NORM_DECODE_NONE);
 #endif
 
     float ooW = 1.0 / vs_W;

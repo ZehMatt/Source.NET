@@ -21,8 +21,6 @@
 #define cFlashlightScreenScale      ps_const[31] // .zw are currently unused
 #define flFlashlightNoLambertValue  cFlashlightColor.w // This is either 0.0 or 2.0
 
-#define HDR_INPUT_MAP_SCALE 16.0
-
 #define TONEMAP_SCALE_NONE 0
 #define TONEMAP_SCALE_LINEAR 1
 #define TONEMAP_SCALE_GAMMA 2
@@ -30,7 +28,6 @@
 #define PIXEL_FOG_TYPE_NONE -1 //MATERIAL_FOG_NONE is handled by PIXEL_FOG_TYPE_RANGE, this is for explicitly disabling fog in the shader
 #define PIXEL_FOG_TYPE_RANGE 0 //range+none packed together in ps2b. Simply none in ps20 (instruction limits)
 #define PIXEL_FOG_TYPE_HEIGHT 1
-#define PIXEL_FOG_TYPE_RANGE_RADIAL 2
 
 // If you change these, make the corresponding change in hardwareconfig.cpp
 #define NVIDIA_PCF_POISSON	0
@@ -119,11 +116,6 @@ vec4 TextureCombine(vec4 baseColor, vec4 detailColor, int combine_mode, float fB
     return baseColor;
 }
 
-vec3 lerp5(vec3 f1, vec3 f2, float i1, float i2, float x)
-{
-    return f1 + (f2 - f1) * (x - i1) / (i2 - i1);
-}
-
 vec3 TextureCombinePostLighting(vec3 lit_baseColor, vec4 detailColor, int combine_mode, float fBlendFactor)
 {
     if (combine_mode == TCOMBINE_RGB_ADDITIVE_SELFILLUM)
@@ -175,26 +167,6 @@ float CalcPixelFogFactor(int iPIXELFOGTYPE, vec4 fogParams, float flEyePosZ, flo
     }
 
     return retVal;
-}
-
-//g_FogParams not defined by default, but this is the same layout for every shader that does define it
-#define g_FogEndOverRange	g_FogParams.x
-#define g_WaterZ			g_FogParams.y
-#define g_FogMaxDensity		g_FogParams.z
-#define g_FogOORange		g_FogParams.w
-
-vec3 BlendPixelFog(vec3 vShaderColor, float pixelFogFactor, vec3 vFogColor, int iPIXELFOGTYPE)
-{
-    if (iPIXELFOGTYPE == PIXEL_FOG_TYPE_RANGE || iPIXELFOGTYPE == PIXEL_FOG_TYPE_RANGE_RADIAL) //either range fog or no fog depending on fog parameters and whether this is ps20 or ps2b
-    {
-        pixelFogFactor = clamp(pixelFogFactor, 0.0, 1.0);
-        return mix(vShaderColor.rgb, vFogColor.rgb, pixelFogFactor * pixelFogFactor); //squaring the factor will get the middle range mixing closer to hardware fog
-    }
-    else if (iPIXELFOGTYPE == PIXEL_FOG_TYPE_HEIGHT)
-    {
-        return mix(vShaderColor.rgb, vFogColor.rgb, clamp(pixelFogFactor, 0.0, 1.0));
-    }
-    return vShaderColor;
 }
 
 // The framebuffer performs the linear->gamma conversion for us (GL_FRAMEBUFFER_SRGB), which is

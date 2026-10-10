@@ -1,5 +1,4 @@
 #version 460
-// STATIC: "CONVERT_TO_SRGB"			"0..0"
 // STATIC: "CUBEMAP"					"0..1"
 // STATIC: "SELFILLUM"					"0..1"
 // STATIC: "SELFILLUMFRESNEL"			"0..1"

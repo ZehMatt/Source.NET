@@ -15,7 +15,6 @@
 // STATIC: "WARPLIGHTING"				"0..1"
 // STATIC: "FANCY_BLENDING"				"0..1"
 // STATIC: "MASKEDBLENDING"				"0..1"
-// STATIC: "RELIEF_MAPPING"				"0..0"
 // STATIC: "SEAMLESS"					"0..1"
 // STATIC: "OUTLINE"					"0..1"
 // STATIC: "SOFTEDGES"					"0..1"
@@ -41,9 +40,7 @@ in vec4 vs_DetailOrBumpAndEnvmapMaskTexCoord;		// envmap mask
 #else
 in vec2 vs_BaseTexCoord;
 // detail textures and bumpmaps are mutually exclusive so that we have enough texcoords.
-#if ( RELIEF_MAPPING == 0 )
 in vec4 vs_DetailOrBumpAndEnvmapMaskTexCoord;
-#endif
 #endif
 centroid in vec4 vs_LightmapTexCoord1And2;
 centroid in vec4 vs_LightmapTexCoord3;
@@ -52,7 +49,7 @@ in vec4 vs_WorldPos_ProjPosZ;
 in mat3 vs_TangentSpaceTranspose;
 #endif
 in vec4 vs_Color;
-in vec4 vs_VertexBlendX_FogFactorW;
+in float vs_VertexBlendX;
 
 layout(std140, binding = 6) uniform source_ps_constants {
     vec4 ps_const[256];
@@ -223,14 +220,6 @@ void main()
     }
 #endif
 
-#if RELIEF_MAPPING
-    // in the parallax case, all texcoords must be the same in order to free
-    // up an iterator for the tangent space view vector
-    vec2 detailTexCoord = vs_BaseTexCoord.xy;
-    vec2 bumpmapTexCoord = vs_BaseTexCoord.xy;
-    vec2 envmapMaskTexCoord = vs_BaseTexCoord.xy;
-#else
-
     #if ( DETAILTEXTURE == 1 )
         vec2 detailTexCoord = vs_DetailOrBumpAndEnvmapMaskTexCoord.xy;
         vec2 bumpmapTexCoord = vs_BaseTexCoord.xy;
@@ -244,7 +233,6 @@ void main()
     #endif
 
     vec2 envmapMaskTexCoord = vs_DetailOrBumpAndEnvmapMaskTexCoord.wz;
-#endif // !RELIEF_MAPPING
 
     vec4 detailColor = vec4(1.0, 1.0, 1.0, 1.0);
 #if DETAILTEXTURE
@@ -284,7 +272,7 @@ void main()
 #if MASKEDBLENDING
     float blendfactor = 0.5;
 #else
-    float blendfactor = vs_VertexBlendX_FogFactorW.r;
+    float blendfactor = vs_VertexBlendX;
 #endif
 
     if (bBaseTexture2)
