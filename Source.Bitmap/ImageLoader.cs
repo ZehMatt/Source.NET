@@ -283,6 +283,18 @@ public static class ImageLoader
 		ImageFormat.I8 => GL_RED,
 		ImageFormat.IA88 => GL_RG,
 	};
+	const int GL_UNSIGNED_BYTE = 0x1401;
+	const int GL_UNSIGNED_SHORT = 0x1403;
+	const int GL_FLOAT = 0x1406;
+	const int GL_HALF_FLOAT = 0x140B;
+	public static int GetGLImageUploadType(ImageFormat format) => format switch {
+		ImageFormat.RGBA16161616 => GL_UNSIGNED_SHORT,
+		ImageFormat.RGBA16161616F => GL_HALF_FLOAT,
+		ImageFormat.R32F => GL_FLOAT,
+		ImageFormat.RGB323232F => GL_FLOAT,
+		ImageFormat.RGBA32323232F => GL_FLOAT,
+		_ => GL_UNSIGNED_BYTE,
+	};
 	public static int GetGLImageInternalFormat(ImageFormat format, bool srgb) => srgb ? GetGLImageInternalFormatSRGB(format) : GetGLImageInternalFormat(format);
 
 	private static int GetGLImageInternalFormatSRGB(ImageFormat format) => format switch {

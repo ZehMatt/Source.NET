@@ -1920,7 +1920,7 @@ public class ShaderAPIGl46 : IShaderAPI, IShaderDevice, IDebugTextureInfo
 				else {
 					ConvertDataToAcceptableGLFormat(info.SrcFormat, data, out ImageFormat uploadFormat, out Span<byte> convertedData);
 					fixed (byte* bytes = convertedData)
-						glTextureSubImage3D((uint)info.Texture, mip, 0, 0, face, w, h, 1, ImageLoader.GetGLImageUploadFormat(uploadFormat), GL_UNSIGNED_BYTE, bytes);
+						glTextureSubImage3D((uint)info.Texture, mip, 0, 0, face, w, h, 1, ImageLoader.GetGLImageUploadFormat(uploadFormat), ImageLoader.GetGLImageUploadType(uploadFormat), bytes);
 				}
 			}
 		}
@@ -2308,7 +2308,7 @@ public class ShaderAPIGl46 : IShaderAPI, IShaderDevice, IDebugTextureInfo
 		glPixelStorei(GL_UNPACK_ROW_LENGTH, srcStride / srcFormat.SizeInBytes());
 		ConvertDataToAcceptableGLFormat(srcFormat, imageData, out srcFormat, out Span<byte> convertedData);
 		fixed (byte* data = convertedData)
-			glTextureSubImage2D((uint)info.Texture, mip, xOffset, yOffset, width >> mip, height >> mip, ImageLoader.GetGLImageUploadFormat(srcFormat), GL_UNSIGNED_BYTE, data);
+			glTextureSubImage2D((uint)info.Texture, mip, xOffset, yOffset, width >> mip, height >> mip, ImageLoader.GetGLImageUploadFormat(srcFormat), ImageLoader.GetGLImageUploadType(srcFormat), data);
 		glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
 		var err = glGetError();
 		// System.Diagnostics.Debug.Assert(err == 0);
@@ -2332,7 +2332,7 @@ public class ShaderAPIGl46 : IShaderAPI, IShaderDevice, IDebugTextureInfo
 		glPixelStorei(GL_UNPACK_ROW_LENGTH, srcStride / srcFormat.SizeInBytes());
 		ConvertDataToAcceptableGLFormat(srcFormat, imageData, out srcFormat, out Span<byte> convertedData);
 		fixed (byte* data = convertedData)
-			glTextureSubImage2D(GetModifyTexture(), mip, x, y, width >> mip, height >> mip, ImageLoader.GetGLImageUploadFormat(srcFormat), GL_UNSIGNED_BYTE, data);
+			glTextureSubImage2D(GetModifyTexture(), mip, x, y, width >> mip, height >> mip, ImageLoader.GetGLImageUploadFormat(srcFormat), ImageLoader.GetGLImageUploadType(srcFormat), data);
 		glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
 		var err = glGetError();
 		// System.Diagnostics.Debug.Assert(err == 0);
@@ -2768,7 +2768,7 @@ public class ShaderAPIGl46 : IShaderAPI, IShaderDevice, IDebugTextureInfo
 
 		Memory<byte> buffer = GetTempLockBuffer(info.Format, width, height);
 		fixed (byte* data = buffer.Span) {
-			glGetTextureSubImage(GetModifyTexture(), level, xOffset, yOffset, 0, width, height, 1, GL_RGBA, GL_UNSIGNED_BYTE, buffer.Span.Length, data);
+			glGetTextureSubImage(GetModifyTexture(), level, xOffset, yOffset, 0, width, height, 1, ImageLoader.GetGLImageUploadFormat(info.Format), ImageLoader.GetGLImageUploadType(info.Format), buffer.Span.Length, data);
 		}
 		writer.SetPixelMemory(info.Format, buffer.Span, width * ImageLoader.SizeInBytes(info.Format));
 		return true;
@@ -2791,7 +2791,7 @@ public class ShaderAPIGl46 : IShaderAPI, IShaderDevice, IDebugTextureInfo
 
 		Memory<byte> buffer = GetTempLockBuffer(info.Format, width, height);
 		fixed (byte* data = buffer.Span) {
-			glGetTextureSubImage(GetModifyTexture(), level, xOffset, yOffset, 0, width, height, 1, GL_RGBA, GL_UNSIGNED_BYTE, buffer.Span.Length, data);
+			glGetTextureSubImage(GetModifyTexture(), level, xOffset, yOffset, 0, width, height, 1, ImageLoader.GetGLImageUploadFormat(info.Format), ImageLoader.GetGLImageUploadType(info.Format), buffer.Span.Length, data);
 		}
 		writer.SetPixelMemory(info.Format, buffer, width * ImageLoader.SizeInBytes(info.Format));
 		return true;
@@ -2800,7 +2800,7 @@ public class ShaderAPIGl46 : IShaderAPI, IShaderDevice, IDebugTextureInfo
 	public unsafe void TexUnlock() {
 		glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
 		fixed (byte* data = lockdata)
-			glTextureSubImage2D(GetGL46Texture(Lock.Handle), Lock.Mip, Lock.X, Lock.Y, Lock.W, Lock.H, ImageLoader.GetGLImageUploadFormat(Lock.Format), GL_UNSIGNED_BYTE, data);
+			glTextureSubImage2D(GetGL46Texture(Lock.Handle), Lock.Mip, Lock.X, Lock.Y, Lock.W, Lock.H, ImageLoader.GetGLImageUploadFormat(Lock.Format), ImageLoader.GetGLImageUploadType(Lock.Format), data);
 		Lock = default;
 	}
 
