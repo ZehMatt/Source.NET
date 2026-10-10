@@ -441,6 +441,19 @@ public class ViewRender : IViewRender
 		IMaterial? material = blend ? ModulateSingleColor.Get() : TranslucentSingleColor.Get();
 		render.ViewDrawFade(color, material);
 
+		if (viewRender.DoBloomAndToneMapping) {
+			bool flashlightIsOn = false;
+			C_BasePlayer? local = C_BasePlayer.GetLocalPlayer();
+			if (local != null)
+				flashlightIsOn = local.IsEffectActive(EntityEffects.DimLight);
+			DoEnginePostProcessing(viewRender.X, viewRender.Y, viewRender.Width, viewRender.Height, flashlightIsOn);
+		}
+
+		if (HardwareConfig.GetHDRType() == HDRType.Integer) {
+			using (renderContext = new MatRenderContextPtr(materials))
+				renderContext.SetToneMappingScaleLinear(new(1, 1, 1));
+		}
+
 		CleanupMain3DView(in viewRender);
 
 		if ((whatToDraw & RenderViewInfo.DrawHUD) != 0) {
