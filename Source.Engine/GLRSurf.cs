@@ -1333,7 +1333,7 @@ public static class GLRSurf
 
 	public static void R_BrushBatchInit() => throw new NotImplementedException();
 	public static void R_Surface_LevelInit() => throw new NotImplementedException();
-	public static void R_Surface_LevelShutdown() => throw new NotImplementedException();
+	public static void R_Surface_LevelShutdown() => WorldRenderList.PurgeAll();
 	static void R_DrawBrushModel_Override(IClientEntity? baseEntity, Model? model, in Vector3 origin) => throw new NotImplementedException();
 	public static int R_MarkDlightsOnBrushModel(Model? model, IClientRenderable renderable) => throw new NotImplementedException();
 

@@ -1418,6 +1418,7 @@ public partial class Render(
 	}
 
 	public void LevelShutdown() {
+		R_Surface_LevelShutdown();
 		R_Areaportal_LevelShutdown();
 	}
 
