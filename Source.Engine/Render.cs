@@ -387,6 +387,9 @@ public partial class Render(
 		MaterialSystem.CreateSortInfo();
 
 		modelLoader.Map_LoadDisplacements(MaterialSystem.MaterialSortInfoArray!, host_state.WorldModel!);
+
+		ModelLoader.Mod_MarkWaterSurfaces(host_state.WorldModel!);
+
 		RebuildLightmaps();
 	}
 	private void Surface_LevelInit() { }

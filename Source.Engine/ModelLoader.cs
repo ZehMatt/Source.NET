@@ -1106,6 +1106,89 @@ public class ModelLoader(IFileSystem fileSystem, Host Host,
 		host_state.SetWorldModel(pTemp);
 	}
 
+	static void MarkWaterSurfaces_ProcessLeafNode(BSPMLeaf leaf) {
+		int i;
+
+		SurfDraw flags = (leaf.LeafWaterDataID == -1) ? SurfDraw.AboveWater : SurfDraw.UnderWater;
+
+		Span<SurfaceHandle_t> handles = host_state.WorldBrush!.MarkSurfaces.AsSpan(leaf.FirstMarkSurface);
+
+		for (i = 0; i < leaf.NumMarkSurfaces; i++) {
+			ref BSPMSurface2 surfID = ref SurfaceHandleFromIndex(handles[i]);
+			if ((MSurf_Flags(ref surfID) & SurfDraw.WaterSurface) != 0)
+				continue;
+
+			if (SurfaceHasDispInfo(ref surfID))
+				continue;
+
+			MSurf_Flags(ref surfID) |= flags;
+		}
+
+		for (i = 0; i < leaf.DispCount; i++) {
+			IDispInfo? dispInfo = DispInfo.MLeaf_Disaplcement(leaf, i);
+
+			if (dispInfo != null) {
+				ref BSPMSurface2 parentSurfID = ref dispInfo.GetParent();
+				MSurf_Flags(ref parentSurfID) |= flags;
+			}
+		}
+	}
+
+	static void MarkWaterSurfaces_r(BSPMNode node) {
+		if (node.Contents == (int)Contents.Solid)
+			return;
+
+		if (node.Contents >= 0) {
+			MarkWaterSurfaces_ProcessLeafNode((BSPMLeaf)node);
+			return;
+		}
+
+		MarkWaterSurfaces_r(node.Children[0]!);
+		MarkWaterSurfaces_r(node.Children[1]!);
+	}
+
+	static int SurfFlagsToSortGroup(ref BSPMSurface2 surfID, SurfDraw flags) {
+		if ((flags & SurfDraw.WaterSurface) != 0)
+			return (int)MatSortGroup.WaterSurface;
+
+		if ((flags & (SurfDraw.UnderWater | SurfDraw.AboveWater)) == (SurfDraw.UnderWater | SurfDraw.AboveWater))
+			return (int)MatSortGroup.IntersectsWaterSurface;
+
+		if ((flags & SurfDraw.UnderWater) != 0)
+			return (int)MatSortGroup.StrictlyUnderwater;
+
+		if ((flags & SurfDraw.AboveWater) != 0)
+			return (int)MatSortGroup.StrictlyAboveWater;
+
+		if (++SurfFlagsToSortGroupWarningCount < 10) {
+			DevWarning($"SurfFlagsToSortGroup:  unhandled flags ({(int)flags:X}) ({MSurf_TexInfo(ref surfID).Material!.GetName()})!\n");
+			DevWarning("- This implies you have a surface (usually a displacement) embedded in solid.\n");
+		}
+		return (int)MatSortGroup.StrictlyAboveWater;
+	}
+
+	static int SurfFlagsToSortGroupWarningCount;
+
+	public static bool Mod_MarkWaterSurfaces(Model model) {
+		bool hasWaterSurfaces = false;
+		Model? saveModel = host_state.WorldModel;
+
+		host_state.SetWorldModel(model);
+		MarkWaterSurfaces_r(model.Brush.Shared!.Nodes![0]);
+		for (int i = 0; i < model.Brush.Shared.NumSurfaces; i++) {
+			ref BSPMSurface2 surfID = ref SurfaceHandleFromIndex(i, model.Brush.Shared);
+
+			int sortGroup = SurfFlagsToSortGroup(ref surfID, MSurf_Flags(ref surfID));
+			if (sortGroup == (int)MatSortGroup.WaterSurface)
+				hasWaterSurfaces = true;
+
+			MSurf_SetSortGroup(ref surfID, sortGroup);
+		}
+		host_state.SetWorldModel(saveModel);
+
+		return hasWaterSurfaces;
+	}
+
 	public void RecomputeSurfaceFlags(Model mod) {
 		for (int i = 0; i < mod.Brush.Shared!.NumSubModels; i++) {
 			Model subModel = InlineModels[i];
