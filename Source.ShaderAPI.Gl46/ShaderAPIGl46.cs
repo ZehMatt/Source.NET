@@ -140,6 +140,8 @@ public class ShaderAPIGl46 : IShaderAPI, IShaderDevice, IDebugTextureInfo
 		if (clearStencil)
 			flags |= GL_STENCIL_BUFFER_BIT;
 
+		if (clearColor)
+			glColorMask(true, true, true, true);
 		if (clearDepth)
 			glDepthMask(true);
 		if (clearStencil)
@@ -171,6 +173,13 @@ public class ShaderAPIGl46 : IShaderAPI, IShaderDevice, IDebugTextureInfo
 				glEnable(GL_SCISSOR_TEST);
 			if (clearColor)
 				glColorMask(colorMask[0], colorMask[1], colorMask[2], colorMask[3]);
+		}
+
+		if (boardStateValid) {
+			if (clearColor)
+				glColorMask(lastBoardState.ColorWrite, lastBoardState.ColorWrite, lastBoardState.ColorWrite, lastBoardState.AlphaWrite);
+			if (clearDepth)
+				glDepthMask(lastBoardState.DepthWrite);
 		}
 	}
 
