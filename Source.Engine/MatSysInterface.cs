@@ -316,7 +316,7 @@ public class MatSysInterface(IMaterialSystem materials, IServiceProvider service
 	private ITexture? CreateWaterReflectionTexture() {
 		return materials.CreateNamedRenderTargetTextureEx2(
 			"_rt_WaterReflection",
-			1024, 1024, RenderTargetSizeMode.Picmip,
+			512, 512, RenderTargetSizeMode.FullFrameBuffer,
 			materials.GetBackBufferFormat(),
 			MaterialRenderTargetDepth.Shared,
 			TextureFlags.ClampS | TextureFlags.ClampT,
@@ -326,7 +326,7 @@ public class MatSysInterface(IMaterialSystem materials, IServiceProvider service
 	private ITexture? CreateWaterRefractionTexture() {
 		return materials.CreateNamedRenderTargetTextureEx2(
 			"_rt_WaterRefraction",
-			1024, 1024, RenderTargetSizeMode.Picmip,
+			512, 512, RenderTargetSizeMode.FullFrameBuffer,
 			// This is different than reflection because it has to have alpha for fog factor.
 			ImageFormat.RGBA8888,
 			MaterialRenderTargetDepth.Shared,
