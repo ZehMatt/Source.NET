@@ -28,6 +28,7 @@
 #define PIXEL_FOG_TYPE_NONE -1 //MATERIAL_FOG_NONE is handled by PIXEL_FOG_TYPE_RANGE, this is for explicitly disabling fog in the shader
 #define PIXEL_FOG_TYPE_RANGE 0 //range+none packed together in ps2b. Simply none in ps20 (instruction limits)
 #define PIXEL_FOG_TYPE_HEIGHT 1
+#define PIXEL_FOG_TYPE_RANGE_RADIAL 2
 
 // If you change these, make the corresponding change in hardwareconfig.cpp
 #define NVIDIA_PCF_POISSON	0
@@ -150,7 +151,13 @@ float CalcRangeFog(float flProjPosZ, float flFogStartOverRange, float flFogMaxDe
     return clamp(min(flFogMaxDensity, (flProjPosZ * flFogOORange) - flFogStartOverRange), 0.0, 1.0);
 }
 
-float CalcPixelFogFactor(int iPIXELFOGTYPE, vec4 fogParams, float flEyePosZ, float flWorldPosZ, float flProjPosZ)
+float CalcRadialFog_NonFixedFunction(vec3 vWorldPos, vec3 vEyePos, float flFogMaxDensity, float flFogEndOverRange, float flFogOORange)
+{
+    float flDistance = distance(vEyePos.xyz, vWorldPos.xyz);
+    return min(flFogMaxDensity, clamp((flDistance * flFogOORange) - flFogEndOverRange, 0.0, 1.0));
+}
+
+float CalcPixelFogFactor(int iPIXELFOGTYPE, vec4 fogParams, vec3 vEyePos, vec3 vWorldPos, float flProjPosZ)
 {
     float retVal = 0.0;
     if (iPIXELFOGTYPE == PIXEL_FOG_TYPE_NONE)
@@ -161,12 +168,43 @@ float CalcPixelFogFactor(int iPIXELFOGTYPE, vec4 fogParams, float flEyePosZ, flo
     {
         retVal = CalcRangeFog(flProjPosZ, fogParams.x, fogParams.z, fogParams.w);
     }
+    else if (iPIXELFOGTYPE == PIXEL_FOG_TYPE_RANGE_RADIAL)
+    {
+        float flFogMaxDensity = fogParams.z;
+        float flFogEndOverRange = fogParams.x;
+        float flFogOORange = fogParams.w;
+
+        retVal = CalcRadialFog_NonFixedFunction(vWorldPos, vEyePos, flFogMaxDensity, flFogEndOverRange, flFogOORange);
+    }
     else if (iPIXELFOGTYPE == PIXEL_FOG_TYPE_HEIGHT) //height fog
     {
-        retVal = CalcWaterFogAlpha(fogParams.y, flEyePosZ, flWorldPosZ, flProjPosZ, fogParams.w);
+        retVal = CalcWaterFogAlpha(fogParams.y, vEyePos.z, vWorldPos.z, flProjPosZ, fogParams.w);
     }
 
     return retVal;
+}
+
+float CalcPixelFogFactor(int iPIXELFOGTYPE, vec4 fogParams, float flEyePosZ, float flWorldPosZ, float flProjPosZ)
+{
+    if (iPIXELFOGTYPE == PIXEL_FOG_TYPE_RANGE_RADIAL)
+        return CalcPixelFogFactor(PIXEL_FOG_TYPE_RANGE, fogParams, vec3(0.0, 0.0, flEyePosZ), vec3(0.0, 0.0, flWorldPosZ), flProjPosZ);
+
+    return CalcPixelFogFactor(iPIXELFOGTYPE, fogParams, vec3(0.0, 0.0, flEyePosZ), vec3(0.0, 0.0, flWorldPosZ), flProjPosZ);
+}
+
+vec3 BlendPixelFog(vec3 vShaderColor, float pixelFogFactor, vec3 vFogColor, int iPIXELFOGTYPE)
+{
+    if (iPIXELFOGTYPE == PIXEL_FOG_TYPE_RANGE || iPIXELFOGTYPE == PIXEL_FOG_TYPE_RANGE_RADIAL)
+    {
+        pixelFogFactor = clamp(pixelFogFactor, 0.0, 1.0);
+        return mix(vShaderColor.rgb, vFogColor.rgb, pixelFogFactor * pixelFogFactor);
+    }
+    else if (iPIXELFOGTYPE == PIXEL_FOG_TYPE_HEIGHT)
+    {
+        return mix(vShaderColor.rgb, vFogColor.rgb, clamp(pixelFogFactor, 0.0, 1.0));
+    }
+
+    return vShaderColor;
 }
 
 // The framebuffer performs the linear->gamma conversion for us (GL_FRAMEBUFFER_SRGB), which is
@@ -207,8 +245,7 @@ vec4 FinalOutput(vec4 vShaderColor, float pixelFogFactor, int iPIXELFOGTYPE, int
     else
         result.a = vShaderColor.a;
 
-    // TODO: fog
-    // result.rgb = BlendPixelFog(result.rgb, pixelFogFactor, g_LinearFogColor.rgb, iPIXELFOGTYPE);
+    result.rgb = BlendPixelFog(result.rgb, pixelFogFactor, g_LinearFogColor.rgb, iPIXELFOGTYPE);
 
     result.rgb = SRGBOutput(result.rgb); //SRGB in pixel shader conversion
 

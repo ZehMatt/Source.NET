@@ -1,5 +1,5 @@
 #version 460
-// DYNAMIC: "PIXELFOGTYPE"				"0..1"
+// DYNAMIC: "PIXELFOGTYPE"				"0..2"
 // DYNAMIC: "NUM_LIGHTS"				"0..4"
 // DYNAMIC: "AMBIENT_LIGHT"				"0..1"
 // DYNAMIC: "WRITE_DEPTH_TO_DESTALPHA"	"0..1"
@@ -71,6 +71,6 @@ void main()
 
     bool bWriteDepthToAlpha = WRITE_DEPTH_TO_DESTALPHA != 0;
 
-    float fogFactor = CalcPixelFogFactor(PIXELFOGTYPE, g_FogParams, g_EyePos_SpecExponent.z, vs_WorldPos_ProjPosZ.z, vs_WorldPos_ProjPosZ.w);
+    float fogFactor = CalcPixelFogFactor(PIXELFOGTYPE, g_FogParams, g_EyePos_SpecExponent.xyz, vs_WorldPos_ProjPosZ.xyz, vs_WorldPos_ProjPosZ.w);
     fragColor = FinalOutput(vec4(result, 1.0), fogFactor, PIXELFOGTYPE, TONEMAP_SCALE_LINEAR, bWriteDepthToAlpha, vs_WorldPos_ProjPosZ.w);
 }

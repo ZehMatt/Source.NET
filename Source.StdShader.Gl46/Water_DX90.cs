@@ -199,6 +199,8 @@ public class Water_DX90 : BaseVSShader
 			pshIndex.Set("BLURRY_REFRACT", vars[BLURREFRACT].GetIntValue());
 			ShaderShadow.SetPixelShader("water", pshIndex.GetIndex());
 
+			FogToFogColor();
+
 			ShaderShadow.EnableSRGBWrite(true);
 
 			ShaderShadow.EnableAlphaWrites(true);
@@ -273,6 +275,8 @@ public class Water_DX90 : BaseVSShader
 				c7[2] = 4.0f;
 			shaderAPI.SetPixelShaderConstant(7, c7, 1);
 
+			shaderAPI.SetPixelShaderFogParams(8);
+
 			DynamicShaderIndex vshIndex = new(shaderAPI, ShaderType.Vertex);
 			shaderAPI.SetVertexShaderIndex(vshIndex.GetIndex());
 
@@ -318,6 +322,8 @@ public class Water_DX90 : BaseVSShader
 
 			if (HardwareConfig.GetHDRType() != HDRType.None)
 				ShaderShadow.EnableSRGBWrite(true);
+
+			FogToFogColor();
 		}
 		else {
 			shaderAPI.SetDefaultState();
@@ -346,6 +352,8 @@ public class Water_DX90 : BaseVSShader
 				Span<float> zero = [0.0f, 0.0f, 0.0f, vars[REFLECTBLENDFACTOR].GetFloatValue()];
 				shaderAPI.SetPixelShaderConstant(2, zero);
 			}
+
+			shaderAPI.SetPixelShaderFogParams(3);
 
 			if (vars[SCROLL1].IsDefined()) {
 				float curtime = (float)shaderAPI.CurrentTime();
