@@ -1130,7 +1130,7 @@ public static class GLRSurf
 			R_RecursiveWorldNode(renderList, node.Children[side]!, cullMask);
 
 			SurfaceHandle_t surfID = node.FirstSurface;
-			int i = ModelLoader.MSurf_Index(ref ModelLoader.SurfaceHandleFromIndex(surfID));
+			int i = surfID;
 			int lastSurface = i + node.NumSurfaces;
 			ref VarBitSet visitedSurfs = ref renderList.VisitedSurfs;
 			for (; i < lastSurface; ++i, ++surfID) {
