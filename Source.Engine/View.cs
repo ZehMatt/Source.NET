@@ -115,6 +115,7 @@ public class RenderView(EngineVGui EngineVGui, Render engineRenderer) : IRenderV
 	public void DrawTranslucentSurfaces(IWorldRenderList? list, int sortIndex, uint flags, bool shadowDepth) => GLRSurf.Shader_DrawTranslucentSurfaces(list!, sortIndex, flags, shadowDepth);
 	public bool LeafContainsTranslucentSurfaces(IWorldRenderList? list, int sortIndex, uint flags) => GLRSurf.Shader_LeafContainsTranslucentSurfaces(list!, sortIndex, flags);
 	public void GetVisibleFogVolume(in Vector3 eyePoint, ref VisibleFogVolumeInfo info) => R_GetVisibleFogVolume(in eyePoint, ref info);
+	public void SetFogVolumeState(int fogVolume, bool useHeightFog) => R_SetFogVolumeState(fogVolume, useHeightFog);
 
 	struct BoxIntersectWaterContext : ISpatialLeafEnumerator
 	{

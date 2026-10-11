@@ -1182,7 +1182,34 @@ public static class GLRSurf
 		}
 		return material;
 	}
-	public static void R_SetFogVolumeState(int fogVolume, bool useHeightFog) => throw new NotImplementedException();
+	public static void R_SetFogVolumeState(int fogVolume, bool useHeightFog) {
+		IMaterial? material = R_GetFogVolumeMaterial(fogVolume, !useHeightFog);
+		ref BSPMLeafWaterData leafWaterData = ref host_state.WorldBrush!.LeafWaterData![fogVolume];
+		IMaterialVar fogColorVar = material!.FindVar("$fogcolor", out _);
+		IMaterialVar fogEnableVar = material.FindVar("$fogenable", out _);
+		IMaterialVar fogStartVar = material.FindVar("$fogstart", out _);
+		IMaterialVar fogEndVar = material.FindVar("$fogend", out _);
+
+		using MatRenderContextPtr renderContext = new(materials);
+
+		if (material != null && fogEnableVar.GetIntValue() != 0 && fog_enable_water_fog.GetBool()) {
+			renderContext.SetFogZ(leafWaterData.SurfaceZ);
+			if (useHeightFog)
+				renderContext.FogMode(MaterialFogMode.LinearBelowFogZ);
+			else
+				renderContext.FogMode(MaterialFogMode.Linear);
+
+			Span<float> fogColor = stackalloc float[3];
+			fogColorVar.GetVecValue(fogColor);
+
+			renderContext.FogColor3fv(fogColor);
+			renderContext.FogStart(fogStartVar.GetFloatValue());
+			renderContext.FogEnd(fogEndVar.GetFloatValue());
+			renderContext.FogMaxDensity(1.0f);
+		}
+		else
+			renderContext.FogMode(MaterialFogMode.None);
+	}
 	static bool R_CullNodeTopView(BSPMNode node) => throw new NotImplementedException();
 	static void R_DrawTopViewLeaf(WorldRenderList renderList, BSPMLeaf leaf) => throw new NotImplementedException();
 	public static void R_RenderWorldTopView(WorldRenderList renderList, BSPMNode node) => throw new NotImplementedException();

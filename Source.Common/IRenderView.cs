@@ -105,6 +105,7 @@ public interface IRenderView
 	void DrawTranslucentSurfaces(IWorldRenderList? list, int sortIndex, uint flags, bool shadowDepth);
 	bool LeafContainsTranslucentSurfaces(IWorldRenderList? list, int sortIndex, uint flags);
 	void GetVisibleFogVolume(in Vector3 eyePoint, ref VisibleFogVolumeInfo info);
+	void SetFogVolumeState(int fogVolume, bool useHeightFog);
 	bool DoesBoxIntersectWaterVolume(in Vector3 mins, in Vector3 maxs, int leafWaterDataID);
 	void BeginUpdateLightmaps();
 	void EndUpdateLightmaps();
