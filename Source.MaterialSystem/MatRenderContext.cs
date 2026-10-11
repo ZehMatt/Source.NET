@@ -1047,36 +1047,34 @@ public class MatRenderContext : IMatRenderContextInternal
 	}
 
 	public void FogColor3f(float r, float g, float b) {
-		throw new NotImplementedException("Incomplete port of IMatRenderContext");
+		byte r8 = (byte)Math.Clamp((int)(r * 255.0f), 0, 255);
+		byte g8 = (byte)Math.Clamp((int)(g * 255.0f), 0, 255);
+		byte b8 = (byte)Math.Clamp((int)(b * 255.0f), 0, 255);
+		shaderAPI.SceneFogColor3ub(r8, g8, b8);
 	}
 
 	public void FogColor3fv(ReadOnlySpan<float> rgb) {
-		throw new NotImplementedException("Incomplete port of IMatRenderContext");
+		byte r8 = (byte)Math.Clamp((int)(rgb[0] * 255.0f), 0, 255);
+		byte g8 = (byte)Math.Clamp((int)(rgb[1] * 255.0f), 0, 255);
+		byte b8 = (byte)Math.Clamp((int)(rgb[2] * 255.0f), 0, 255);
+		shaderAPI.SceneFogColor3ub(r8, g8, b8);
 	}
 
-	public void FogColor3ub(byte r, byte g, byte b) {
-		throw new NotImplementedException("Incomplete port of IMatRenderContext");
-	}
+	public void FogColor3ub(byte r, byte g, byte b) => shaderAPI.SceneFogColor3ub(r, g, b);
 
-	public void FogColor3ubv(ReadOnlySpan<byte> rgb) {
-		throw new NotImplementedException("Incomplete port of IMatRenderContext");
-	}
+	public void FogColor3ubv(ReadOnlySpan<byte> rgb) => shaderAPI.SceneFogColor3ub(rgb[0], rgb[1], rgb[2]);
 
-	public void FogEnd(float end) {
-		throw new NotImplementedException("Incomplete port of IMatRenderContext");
-	}
+	public void FogEnd(float end) => shaderAPI.FogEnd(end);
 
-	public void FogMaxDensity(float maxDensity) {
-		throw new NotImplementedException("Incomplete port of IMatRenderContext");
-	}
+	public void FogMaxDensity(float maxDensity) => shaderAPI.FogMaxDensity(maxDensity);
 
-	public void FogMode(MaterialFogMode fogMode) {
-		throw new NotImplementedException("Incomplete port of IMatRenderContext");
-	}
+	public void FogMode(MaterialFogMode fogMode) => shaderAPI.SceneFogMode(fogMode);
 
-	public void FogStart(float start) {
-		throw new NotImplementedException("Incomplete port of IMatRenderContext");
-	}
+	public void FogStart(float start) => shaderAPI.FogStart(start);
+
+	public void FogRadial(bool radial) => shaderAPI.SceneFogRadial(radial);
+
+	public bool GetFogRadial() => shaderAPI.GetSceneFogRadial();
 
 	public void GMOD_FlushQueue() {
 		throw new NotImplementedException("Incomplete port of IMatRenderContext");
@@ -1086,17 +1084,11 @@ public class MatRenderContext : IMatRenderContextInternal
 		throw new NotImplementedException("Incomplete port of IMatRenderContext");
 	}
 
-	public void GetFogColor(out Color rgb) {
-		throw new NotImplementedException("Incomplete port of IMatRenderContext");
-	}
+	public void GetFogColor(out Color rgb) => shaderAPI.GetSceneFogColor(out rgb);
 
-	public void GetFogDistances(out float start, out float end, out float fogZ) {
-		throw new NotImplementedException("Incomplete port of IMatRenderContext");
-	}
+	public void GetFogDistances(out float start, out float end, out float fogZ) => shaderAPI.GetFogDistances(out start, out end, out fogZ);
 
-	public MaterialFogMode GetFogMode() {
-		throw new NotImplementedException("Incomplete port of IMatRenderContext");
-	}
+	public MaterialFogMode GetFogMode() => shaderAPI.GetSceneFogMode();
 
 	public void GetMatrix(MaterialMatrixMode matrixMode, out Matrix3x4 matrix) {
 		throw new NotImplementedException("Incomplete port of IMatRenderContext");

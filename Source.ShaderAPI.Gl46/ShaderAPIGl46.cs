@@ -184,6 +184,7 @@ public class ShaderAPIGl46 : IShaderAPI, IShaderDevice, IDebugTextureInfo
 	ShadowStateGl46? currentShadow;
 	internal void SetCurrentShadow(ShadowStateGl46 shadow) {
 		currentShadow = shadow;
+		ApplyCurrentShadowFogMode(false);
 	}
 
 	public void SetVertexShaderIndex(int index) {
@@ -815,7 +816,20 @@ public class ShaderAPIGl46 : IShaderAPI, IShaderDevice, IDebugTextureInfo
 	}
 
 	private void UpdateVertexShaderFogParams() {
-		// todo: fog params
+		float ooFogRange = 1.0f;
+
+		float start = VertexShaderFogParams[0];
+		float end = VertexShaderFogParams[1];
+
+		if (end != start)
+			ooFogRange = 1.0f / (end - start);
+
+		Span<float> fogParams = [
+			ooFogRange * end,
+			1.0f,
+			1.0f - Math.Clamp(FogMaxDensityValue, 0.0f, 1.0f),
+			ooFogRange,
+		];
 
 		Span<float> vertexShaderCameraPos = [
 			WorldSpaceCameraPosition.X,
@@ -824,8 +838,135 @@ public class ShaderAPIGl46 : IShaderAPI, IShaderDevice, IDebugTextureInfo
 			FogZ,
 		];
 
+		SetVertexShaderConstant(VertexShaderConst.FogParams, fogParams);
+
 		SetVertexShaderConstant(VertexShaderConst.CameraPos, vertexShaderCameraPos);
 	}
+
+	readonly float[] VertexShaderFogParams = new float[2];
+	float FogMaxDensityValue = -1.0f;
+	float FogStartValue = -1.0f;
+	float FogEndValue = -1.0f;
+	readonly byte[] SceneFogColor = new byte[3];
+	bool SceneFogRadialValue;
+	Vector3 PixelFogColor;
+	bool FogGammaCorrectionDisabled;
+	ShaderFogMode AppliedFogMode = ShaderFogMode.Num;
+	bool AppliedFogSRGBWrite;
+	bool AppliedFogDisableGammaCorrection;
+	float DestAlphaDepthRange = 8192.0f;
+
+	private void UpdatePixelFogColorConstant() {
+		Span<float> fogColor = stackalloc float[4];
+
+		switch (GetPixelFogMode()) {
+			case MaterialFogMode.None:
+				for (int i = 0; i != 3; ++i)
+					fogColor[i] = 0.0f;
+				break;
+
+			case MaterialFogMode.Linear:
+				for (int i = 0; i != 3; ++i)
+					fogColor[i] = PixelFogColor[i];
+
+				if (currentShadow != null && currentShadow.State.SRGBWriteEnable) {
+					for (int i = 0; i != 3; ++i)
+						fogColor[i] = GammaToLinear_HardwareSpecific(fogColor[i]);
+				}
+
+				if (!FogGammaCorrectionDisabled && HardwareConfig.GetHDRType() == HDRType.Integer) {
+					for (int i = 0; i != 3; ++i)
+						fogColor[i] *= ToneMappingScale.X;
+				}
+				break;
+
+			case MaterialFogMode.LinearBelowFogZ:
+				for (int i = 0; i != 3; ++i)
+					fogColor[i] = GammaToLinear_HardwareSpecific(PixelFogColor[i]);
+
+				if (!FogGammaCorrectionDisabled && HardwareConfig.GetHDRType() == HDRType.Integer) {
+					for (int i = 0; i != 3; ++i)
+						fogColor[i] *= ToneMappingScale.X;
+				}
+				break;
+		}
+
+		fogColor[3] = 1.0f / DestAlphaDepthRange;
+
+		SetPixelShaderConstant((int)PixelShaderConst.LinearFogColor, fogColor);
+	}
+
+	private void ApplyFogMode(ShaderFogMode fogMode, bool srgbWritesEnabled, bool disableFogGammaCorrection) {
+		if (fogMode == ShaderFogMode.Disabled)
+			return;
+
+		bool shouldGammaCorrect = true;
+		byte r = 0, g = 0, b = 0;
+
+		switch (fogMode) {
+			case ShaderFogMode.Black:
+				shouldGammaCorrect = false;
+				break;
+			case ShaderFogMode.Overbright:
+			case ShaderFogMode.Grey:
+				r = g = b = 128;
+				break;
+			case ShaderFogMode.White:
+				r = g = b = 255;
+				shouldGammaCorrect = false;
+				break;
+			case ShaderFogMode.FogColor:
+				r = SceneFogColor[0];
+				g = SceneFogColor[1];
+				b = SceneFogColor[2];
+				break;
+		}
+
+		shouldGammaCorrect &= !disableFogGammaCorrection;
+		FogGammaCorrectionDisabled = !shouldGammaCorrect;
+
+		const float colorScale = 1.0f / 255.0f;
+		PixelFogColor.X = r * colorScale;
+		PixelFogColor.Y = g * colorScale;
+		PixelFogColor.Z = b * colorScale;
+
+		UpdatePixelFogColorConstant();
+	}
+
+	private void ApplyCurrentShadowFogMode(bool force) {
+		if (currentShadow == null)
+			return;
+
+		ShaderFogMode fogMode = currentShadow.FogModeState;
+		bool srgbWrite = currentShadow.State.SRGBWriteEnable;
+		bool disableGammaCorrection = currentShadow.DisableFogGammaCorrectionState;
+
+		if (!force && fogMode == AppliedFogMode && srgbWrite == AppliedFogSRGBWrite && disableGammaCorrection == AppliedFogDisableGammaCorrection)
+			return;
+
+		AppliedFogMode = fogMode;
+		AppliedFogSRGBWrite = srgbWrite;
+		AppliedFogDisableGammaCorrection = disableGammaCorrection;
+		ApplyFogMode(fogMode, srgbWrite, disableGammaCorrection);
+	}
+
+	private MaterialFogMode GetPixelFogMode() {
+		if (ShouldUsePixelFogForMode(SceneFogMode))
+			return SceneFogMode;
+		else
+			return MaterialFogMode.None;
+	}
+
+	private static bool ShouldUsePixelFogForMode(MaterialFogMode fogMode) => fogMode != MaterialFogMode.None;
+
+	public void SceneFogRadial(bool radial) {
+		if (SceneFogRadialValue != radial) {
+			FlushBufferedPrimitives();
+			SceneFogRadialValue = radial;
+		}
+	}
+
+	public bool GetSceneFogRadial() => SceneFogRadialValue;
 
 	private void InitVertexAndPixelShaders() {
 		// TODO; everything before this call
@@ -2888,8 +3029,17 @@ public class ShaderAPIGl46 : IShaderAPI, IShaderDevice, IDebugTextureInfo
 	}
 
 	public int GetPixelFogCombo() {
-		// throw new NotImplementedException();
-		return (int)MaterialFogMode.None; // TODO!
+		if ((SceneFogMode != MaterialFogMode.None) && ShouldUsePixelFogForMode(SceneFogMode))
+			return (int)SceneFogMode - 1;
+		else
+			return (int)MaterialFogMode.None;
+	}
+
+	public int GetPixelFogCombo1(bool supportsRadial) {
+		if (supportsRadial && SceneFogRadialValue && SceneFogMode == MaterialFogMode.Linear)
+			return 2;
+
+		return GetPixelFogCombo();
 	}
 
 	public bool ShouldWriteDepthToDestAlpha() =>
@@ -2966,7 +3116,7 @@ public class ShaderAPIGl46 : IShaderAPI, IShaderDevice, IDebugTextureInfo
 
 					case CommandBufferCommand.SetPixelShaderFogParams: {
 							int reg = MemoryMarshal.Read<int>(cmdBuf[(offset + 4)..]);
-							// SetPixelShaderFogParams(reg);
+							SetPixelShaderFogParams(reg);
 							offset += 8;
 							break;
 						}
@@ -3220,15 +3370,32 @@ public class ShaderAPIGl46 : IShaderAPI, IShaderDevice, IDebugTextureInfo
 	}
 
 	public void FogEnd(float end) {
-		throw new NotImplementedException("Incomplete port of IShaderAPI");
+		if (end != FogEndValue) {
+			FlushBufferedPrimitives();
+
+			VertexShaderFogParams[1] = end;
+			UpdateVertexShaderFogParams();
+			FogEndValue = end;
+		}
 	}
 
 	public void FogMaxDensity(float maxDensity) {
-		throw new NotImplementedException("Incomplete port of IShaderAPI");
+		if (maxDensity != FogMaxDensityValue) {
+			FlushBufferedPrimitives();
+
+			FogMaxDensityValue = maxDensity;
+			UpdateVertexShaderFogParams();
+		}
 	}
 
 	public void FogStart(float start) {
-		throw new NotImplementedException("Incomplete port of IShaderAPI");
+		if (start != FogStartValue) {
+			FlushBufferedPrimitives();
+
+			VertexShaderFogParams[0] = start;
+			UpdateVertexShaderFogParams();
+			FogStartValue = start;
+		}
 	}
 
 	public void ForceDepthFuncEquals(bool bEnable) {
@@ -3239,12 +3406,12 @@ public class ShaderAPIGl46 : IShaderAPI, IShaderDevice, IDebugTextureInfo
 		throw new NotImplementedException("Incomplete port of IShaderAPI");
 	}
 
-	public float GammaToLinear_HardwareSpecific(float gamma) {
-		throw new NotImplementedException("Incomplete port of IShaderAPI");
-	}
+	public float GammaToLinear_HardwareSpecific(float gamma) => MathLib.SrgbGammaToLinear(gamma);
 
 	public void GetFogDistances(out float start, out float end, out float fogZ) {
-		throw new NotImplementedException("Incomplete port of IShaderAPI");
+		start = FogStartValue;
+		end = FogEndValue;
+		fogZ = FogZ;
 	}
 
 	public void GetMaxToRender(IMesh mesh, bool maxUntilFlush, out int maxVerts, out int maxIndices) {
@@ -3256,7 +3423,7 @@ public class ShaderAPIGl46 : IShaderAPI, IShaderDevice, IDebugTextureInfo
 	}
 
 	public void GetSceneFogColor(out Color rgb) {
-		throw new NotImplementedException("Incomplete port of IShaderAPI");
+		rgb = new Color(SceneFogColor[0], SceneFogColor[1], SceneFogColor[2], 255);
 	}
 
 	public void HandleDeviceLost() {
@@ -3390,11 +3557,23 @@ public class ShaderAPIGl46 : IShaderAPI, IShaderDevice, IDebugTextureInfo
 	}
 
 	public void SceneFogColor3ub(byte r, byte g, byte b) {
-		throw new NotImplementedException("Incomplete port of IShaderAPI");
+		if (SceneFogColor[0] != r || SceneFogColor[1] != g || SceneFogColor[2] != b) {
+			FlushBufferedPrimitives();
+			SceneFogColor[0] = r;
+			SceneFogColor[1] = g;
+			SceneFogColor[2] = b;
+
+			ApplyCurrentShadowFogMode(true);
+		}
 	}
 
 	void IShaderAPI.SceneFogMode(MaterialFogMode fogMode) {
-		throw new NotImplementedException("Incomplete port of IShaderAPI");
+		if (SceneFogMode != fogMode) {
+			FlushBufferedPrimitives();
+			SceneFogMode = fogMode;
+
+			ApplyCurrentShadowFogMode(true);
+		}
 	}
 
 	public void SelectionBuffer(Span<uint> buffer) {
@@ -3618,7 +3797,9 @@ public class ShaderAPIGl46 : IShaderAPI, IShaderDevice, IDebugTextureInfo
 	}
 
 	public void GetSceneFogColor(Span<byte> rgb) {
-		throw new NotImplementedException("Incomplete port of IShaderDynamicAPI");
+		rgb[0] = SceneFogColor[0];
+		rgb[1] = SceneFogColor[1];
+		rgb[2] = SceneFogColor[2];
 	}
 
 	public void GetStandardTextureDimensions(out int width, out int height, StandardTextureId id) {
@@ -3722,7 +3903,36 @@ public class ShaderAPIGl46 : IShaderAPI, IShaderDevice, IDebugTextureInfo
 	}
 
 	public void SetPixelShaderFogParams(int reg) {
-		throw new NotImplementedException("Incomplete port of IShaderDynamicAPI");
+		ShaderFogMode fogMode = currentShadow?.FogModeState ?? ShaderFogMode.Disabled;
+		Span<float> fogParams = stackalloc float[4];
+
+		if ((GetPixelFogMode() != MaterialFogMode.None) && (fogMode != ShaderFogMode.Disabled)) {
+			float ooFogRange = 1.0f;
+
+			float start = VertexShaderFogParams[0];
+			float end = VertexShaderFogParams[1];
+
+			if (end != start)
+				ooFogRange = 1.0f / (end - start);
+
+			fogParams[0] = start * ooFogRange;
+			fogParams[1] = FogZ;
+			fogParams[2] = Math.Clamp(FogMaxDensityValue, 0.0f, 1.0f);
+			fogParams[3] = ooFogRange;
+
+			if (GetPixelFogMode() == MaterialFogMode.LinearBelowFogZ) {
+				fogParams[0] = 0.0f;
+				fogParams[2] = 1.0f;
+			}
+		}
+		else {
+			fogParams[0] = 0.0f;
+			fogParams[1] = FogZ;
+			fogParams[2] = 1.0f;
+			fogParams[3] = 0.0f;
+		}
+
+		SetPixelShaderConstant(reg, fogParams);
 	}
 
 	public void SetTextureTransformDimension(TextureStage textureStage, int dimension, bool projected) {

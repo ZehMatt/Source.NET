@@ -274,6 +274,8 @@ public interface IShaderAPI : IShaderDynamicAPI
 	void SceneFogColor3ub(byte r, byte g, byte b);
 	void GetSceneFogColor(out Color rgb);
 	void SceneFogMode(MaterialFogMode fogMode);
+	void SceneFogRadial(bool radial);
+	bool GetSceneFogRadial();
 
 	// Can we download textures?
 	bool CanDownloadTextures();
