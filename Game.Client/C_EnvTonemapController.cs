@@ -35,7 +35,7 @@ public class C_EnvTonemapController : C_BaseEntity
 	[NetworkName("m_flCustomBloomScaleMinimum")]
 	public float CustomBloomScaleMinimum;
 
-	static readonly EHANDLE g_hTonemapControllerInUse = new();
+	static EHANDLE g_hTonemapControllerInUse = new();
 
 	public override void UpdateOnRemove() {
 		if (g_hTonemapControllerInUse.Get() == this) {
