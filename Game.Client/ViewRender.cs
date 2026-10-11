@@ -23,6 +23,7 @@ public static class ViewRenderConVars
 	internal readonly static ConVar r_drawopaqueworld = new("1", FCvar.Cheat);
 	internal readonly static ConVar r_drawtranslucentworld = new("1", FCvar.Cheat);
 	internal readonly static ConVar r_3dsky = new("1", 0, "Enable the rendering of 3d sky boxes");
+	internal readonly static ConVar r_3dskyinreflection = new("1", 0, "Enable the rendering of 3d sky boxes in water reflection");
 	internal readonly static ConVar r_skybox = new("1", FCvar.Cheat, "Enable the rendering of sky boxes");
 	internal readonly static ConVar r_drawviewmodel = new("1", FCvar.Cheat);
 	internal readonly static ConVar r_drawtranslucentrenderables = new("1", FCvar.Cheat);
@@ -141,7 +142,7 @@ public class BaseWorldView : Rendering3dView
 
 	static Vector3 SavedLinearLightMapScale = new(-1, -1, -1);
 
-	static void SetLightmapScaleForWater() {
+	protected static void SetLightmapScaleForWater() {
 		if (Singleton<IMaterialSystemHardwareConfig>().GetHDRType() == HDRType.Integer) {
 			using MatRenderContextPtr renderContext = new(materials);
 			SavedLinearLightMapScale = renderContext.GetToneMappingScaleLinear();
@@ -392,11 +393,13 @@ public class AboveWaterView : BaseWaterView
 	readonly ReflectionView Reflection;
 	readonly RefractionView Refraction;
 	readonly IntersectionView Intersection;
+	readonly SkyboxReflectionView SkyboxReflection;
 
 	public AboveWaterView(ViewRender mainView) : base(mainView) {
 		Reflection = new(mainView, this);
 		Refraction = new(mainView, this);
 		Intersection = new(mainView, this);
+		SkyboxReflection = new(mainView, this);
 	}
 
 	public void Setup(in ViewSetup view, bool drawSkybox, in VisibleFogVolumeInfo fogInfo, in WaterRenderInfo waterInfo) {
@@ -424,11 +427,20 @@ public class AboveWaterView : BaseWaterView
 		Reflection.ReleaseLists();
 		Refraction.ReleaseLists();
 		Intersection.ReleaseLists();
+		SkyboxReflection.ReleaseLists();
 	}
 
 	public override void Draw() {
 		if (WaterInfo.Reflect) {
-			Reflection.Setup(WaterInfo.ReflectEntities);
+			bool drew3dSkybox = false;
+			if (r_3dskyinreflection.GetBool() && r_3dsky.GetInt() != 0 && SkyboxReflection.Setup()) {
+				mainView.AddViewToScene(SkyboxReflection);
+				drew3dSkybox = true;
+
+				mainView.SetupVis(in setup, out _);
+			}
+
+			Reflection.Setup(WaterInfo.ReflectEntities, drew3dSkybox);
 			mainView.AddViewToScene(Reflection);
 		}
 
@@ -458,14 +470,15 @@ public class AboveWaterView : BaseWaterView
 
 	class ReflectionView(ViewRender mainView, AboveWaterView outer) : BaseWorldView(mainView)
 	{
-		public void Setup(bool reflectEntities) {
+		public void Setup(bool reflectEntities, bool drew3dSkybox) {
 			base.Setup(in outer.setup);
 
 			ClearFlags = ClearFlags.ClearDepth;
 
 			DrawFlags = DrawFlags.RenderReflection | DrawFlags.ClipZ | DrawFlags.ClipBelow | DrawFlags.RenderAbovewater;
 
-			DrawFlags |= DrawFlags.DrawSkybox;
+			if (!drew3dSkybox)
+				DrawFlags |= DrawFlags.DrawSkybox;
 
 			if (reflectEntities)
 				DrawFlags |= DrawFlags.DrawEntities;
@@ -484,6 +497,98 @@ public class AboveWaterView : BaseWaterView
 
 			using MatRenderContextPtr renderContext = new(mainView.materials);
 			renderContext.Flush();
+		}
+	}
+
+	class SkyboxReflectionView(ViewRender mainView, AboveWaterView outer) : BaseWorldView(mainView)
+	{
+		SafeFieldPointer<PlayerLocalData, Sky3DParams> Sky3dParams = new();
+
+		public bool Setup() {
+			base.Setup(in outer.setup);
+
+			SkyboxVisibility skyboxVisible = SkyboxVisibility.Skybox3D;
+			Sky3dParams = PreRender3dSkyboxWorld(ref skyboxVisible);
+
+			if (Sky3dParams.IsNull)
+				return false;
+
+			ClearFlags = ClearFlags.ClearDepth;
+			ClearFlags |= ClearFlags.ClearColor;
+
+			DrawFlags = DrawFlags.RenderReflection | DrawFlags.ClipZ | DrawFlags.ClipBelow | DrawFlags.RenderAbovewater;
+			DrawFlags |= DrawFlags.DrawSkybox;
+			return true;
+		}
+
+		public override void Draw() {
+			if (Sky3dParams.IsNull)
+				return;
+
+			ref Sky3DParams sky3dParams = ref Sky3dParams.Get();
+
+			Span<byte> areaBits = render.GetAreaBits();
+			Span<byte> saveBits = stackalloc byte[Constants.MAX_AREA_STATE_BYTES];
+			areaBits.CopyTo(saveBits);
+			areaBits.Clear();
+
+			areaBits[sky3dParams.Area >> 3] |= (byte)(1 << (sky3dParams.Area & 7));
+
+			setup.ZNear = 2.0f;
+			setup.ZFar = WorldSize.MAX_TRACE_LENGTH;
+
+			float scale = (sky3dParams.Scale > 0) ? (1.0f / sky3dParams.Scale) : 1.0f;
+			Vector3 skyOrigin = sky3dParams.Origin;
+			setup.Origin *= scale;
+			setup.Origin += skyOrigin;
+
+			float waterHeight = skyOrigin.Z + (scale * outer.FogInfo.WaterHeight);
+			AdjustView(waterHeight);
+
+			Enable3dSkyboxFog();
+
+			render.ViewSetupVisEx(false, new(ref sky3dParams.Origin), out _);
+
+			using MatRenderContextPtr renderContext = new(mainView.materials);
+
+			ITexture? texture = RenderTexture.GetWaterReflectionTexture();
+
+			renderContext.SetHeightClipZ(waterHeight);
+
+			MaterialHeightClipMode clipMode = MaterialHeightClipMode.Disable;
+			if ((DrawFlags & DrawFlags.ClipZ) != 0 && mat_clipz.GetBool())
+				clipMode = MaterialHeightClipMode.RenderAboveHeight;
+
+			renderContext.SetHeightClipMode(clipMode);
+
+			SetLightmapScaleForWater();
+
+			render.Push3DView(in setup, ClearFlags, texture, GetFrustrum(), null);
+
+			ViewID saveViewID = CurrentViewID();
+			Vector3 oldOrigin = CurrentViewOrigin();
+			QAngle oldAngles = CurrentViewAngles();
+			SetupCurrentView(in setup.Origin, in setup.Angles, ViewID.Sky3D);
+
+			render.BeginUpdateLightmaps();
+			BuildWorldRenderLists(true, -1, true);
+			BuildRenderableRenderLists(ViewID.Sky3D);
+			render.EndUpdateLightmaps();
+
+			engine.Sound_ExtraUpdate();
+
+			DrawWorld(0.0f);
+
+			DrawOpaqueRenderables(RenderDepthMode.Normal);
+			DrawTranslucentRenderables(RenderDepthMode.Normal);
+			mainView.DisableFog();
+
+			renderContext.Flush();
+			saveBits.CopyTo(areaBits);
+
+			PopView();
+
+			SetupCurrentView(in oldOrigin, in oldAngles, saveViewID);
 		}
 	}
 
@@ -1272,6 +1377,73 @@ public class Rendering3dView : Base3dView
 	protected void SetFogVolumeState(in VisibleFogVolumeInfo fogInfo, bool useHeightFog) {
 		render.SetFogVolumeState(fogInfo.VisibleFogVolume, useHeightFog);
 	}
+
+	protected static SafeFieldPointer<PlayerLocalData, Sky3DParams> PreRender3dSkyboxWorld(ref SkyboxVisibility skyboxVisible) {
+		if ((skyboxVisible != SkyboxVisibility.Skybox3D) && r_3dsky.GetInt() != 2)
+			return SafeFieldPointer<PlayerLocalData, Sky3DParams>.Null;
+
+		if (r_3dsky.GetInt() == 0)
+			return SafeFieldPointer<PlayerLocalData, Sky3DParams>.Null;
+
+		C_BasePlayer? player = C_BasePlayer.GetLocalPlayer();
+		if (player == null)
+			return SafeFieldPointer<PlayerLocalData, Sky3DParams>.Null;
+
+		PlayerLocalData local = player.Local;
+		if (local.Skybox3D.Area == 255)
+			return SafeFieldPointer<PlayerLocalData, Sky3DParams>.Null;
+
+		return new(local, GetSkybox3DRef);
+	}
+
+	static ref Sky3DParams GetSkybox3DRef(PlayerLocalData local) => ref local.Skybox3D;
+
+	protected static bool GetSkyboxFogEnable() {
+		C_BasePlayer? pbp = C_BasePlayer.GetLocalPlayer();
+		if (pbp == null)
+			return false;
+
+		PlayerLocalData local = pbp.Local;
+
+		if (fog_override.GetInt() != 0)
+			return fog_enableskybox.GetInt() != 0;
+		else
+			return local.Skybox3D.Fog.Enable;
+	}
+
+	protected void Enable3dSkyboxFog() {
+		C_BasePlayer? pbp = C_BasePlayer.GetLocalPlayer();
+		if (pbp == null)
+			return;
+
+		PlayerLocalData local = pbp.Local;
+
+		using MatRenderContextPtr renderContext = new(mainView.materials);
+
+		float scale = 1.0f;
+		if (local.Skybox3D.Scale > 0.0f)
+			scale = 1.0f / local.Skybox3D.Scale;
+
+		if (gGM != null && gGM.CallWithArgs((int)LUA_POOLEDSTRING.SetupSkyboxFog)) {
+			g_Lua!.PushNumber(scale);
+			if (gGM.CallFinish(1))
+				return;
+		}
+
+		if (GetSkyboxFogEnable()) {
+			Span<float> fogColor = stackalloc float[3];
+			GetSkyboxFogColor(fogColor);
+
+			renderContext.FogMode(MaterialFogMode.Linear);
+			renderContext.FogColor3fv(fogColor);
+			renderContext.FogStart(GetSkyboxFogStart() * scale);
+			renderContext.FogEnd(GetSkyboxFogEnd() * scale);
+			renderContext.FogMaxDensity(GetSkyboxFogMaxDensity());
+			renderContext.FogRadial(GetSkyboxFogRadial());
+		}
+		else
+			renderContext.FogMode(MaterialFogMode.None);
+	}
 	protected void SetupRenderablesList(ViewID viewID) {
 		// Clear the list.
 		int i;
@@ -1443,73 +1615,6 @@ public class SkyboxView : Rendering3dView
 			return;
 #endif
 		Rendering3DSkybox = false;
-	}
-
-	private SafeFieldPointer<PlayerLocalData, Sky3DParams> PreRender3dSkyboxWorld(ref SkyboxVisibility skyboxVisible) {
-		if ((skyboxVisible != SkyboxVisibility.Skybox3D) && r_3dsky.GetInt() != 2)
-			return SafeFieldPointer<PlayerLocalData, Sky3DParams>.Null;
-
-		if (r_3dsky.GetInt() == 0)
-			return SafeFieldPointer<PlayerLocalData, Sky3DParams>.Null;
-
-		C_BasePlayer? player = C_BasePlayer.GetLocalPlayer();
-		if (player == null)
-			return SafeFieldPointer<PlayerLocalData, Sky3DParams>.Null;
-
-		PlayerLocalData local = player.Local;
-		if (local.Skybox3D.Area == 255)
-			return SafeFieldPointer<PlayerLocalData, Sky3DParams>.Null;
-
-		return new(local, GetSkybox3DRef);
-	}
-
-	static ref Sky3DParams GetSkybox3DRef(PlayerLocalData local) => ref local.Skybox3D;
-
-	private bool GetSkyboxFogEnable() {
-		C_BasePlayer? pbp = C_BasePlayer.GetLocalPlayer();
-		if (pbp == null)
-			return false;
-
-		PlayerLocalData local = pbp.Local;
-
-		if (fog_override.GetInt() != 0)
-			return fog_enableskybox.GetInt() != 0;
-		else
-			return local.Skybox3D.Fog.Enable;
-	}
-
-	private void Enable3dSkyboxFog() {
-		C_BasePlayer? pbp = C_BasePlayer.GetLocalPlayer();
-		if (pbp == null)
-			return;
-
-		PlayerLocalData local = pbp.Local;
-
-		using MatRenderContextPtr renderContext = new(mainView.materials);
-
-		float scale = 1.0f;
-		if (local.Skybox3D.Scale > 0.0f)
-			scale = 1.0f / local.Skybox3D.Scale;
-
-		if (gGM != null && gGM.CallWithArgs((int)LUA_POOLEDSTRING.SetupSkyboxFog)) {
-			g_Lua!.PushNumber(scale);
-			if (gGM.CallFinish(1))
-				return;
-		}
-
-		if (GetSkyboxFogEnable()) {
-			Span<float> fogColor = stackalloc float[3];
-			GetSkyboxFogColor(fogColor);
-
-			renderContext.FogMode(MaterialFogMode.Linear);
-			renderContext.FogColor3fv(fogColor);
-			renderContext.FogStart(GetSkyboxFogStart() * scale);
-			renderContext.FogEnd(GetSkyboxFogEnd() * scale);
-			renderContext.FogMaxDensity(GetSkyboxFogMaxDensity());
-			renderContext.FogRadial(GetSkyboxFogRadial());
-		}
-		else
-			renderContext.FogMode(MaterialFogMode.None);
 	}
 
 	private SkyboxVisibility ComputeSkyboxVisibility() {

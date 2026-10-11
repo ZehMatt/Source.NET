@@ -822,7 +822,7 @@ public class ViewRender : IViewRender
 	public static bool RenderingView = false;
 	public static ViewID g_CurrentViewID = ViewID.None;
 	public virtual bool ShouldForceNoVis() => ForceNoVis;
-	private void SetupVis(in ViewSetup viewRender, out uint visFlags) {
+	internal void SetupVis(in ViewSetup viewRender, out uint visFlags) {
 		// TODO: more logic here 
 		render.ViewSetupVisEx(ShouldForceNoVis(), new ReadOnlySpan<Vector3>(in viewRender.Origin), out visFlags);
 	}
