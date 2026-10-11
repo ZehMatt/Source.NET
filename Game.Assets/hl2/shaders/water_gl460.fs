@@ -88,9 +88,10 @@ void main()
     vec2 vRefractTexCoord;
 
     vec4 vN;
-    vN.xy = vNormal.xy;
+    vN.x = vNormal.x;
+    vN.y = -vNormal.y;
     vN.w = vNormal.x;
-    vN.z = vNormal.y;
+    vN.z = -vNormal.y;
     vec4 vDependentTexCoords = vN * vNormal.a * reflectRefractScale;
 
     vDependentTexCoords += (vs_ReflectXY_RefractYX * ooW);
