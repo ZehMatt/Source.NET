@@ -137,6 +137,11 @@ public class ViewRender : IViewRender
 
 	public DrawFlags GetBaseDrawFlags() => BaseDrawFlags;
 
+	public void DisableFog() {
+		using MatRenderContextPtr renderContext = new(materials);
+		renderContext.FogMode(MaterialFogMode.None);
+	}
+
 	public Frustum GetFrustum() => ActiveRenderer?.GetFrustrum() ?? Frustum;
 
 	public ref ViewSetup GetPlayerViewSetup() => ref GetView(StereoEye.Mono);
@@ -429,6 +434,9 @@ public class ViewRender : IViewRender
 			ViewDrawScene(drew3dSkybox, skyboxVisible, in viewRender, clearFlags, ViewID.Main, (whatToDraw & RenderViewInfo.DrawViewmodel) != 0);
 		else
 			ViewDrawScene_Intro(in viewRender, clearFlags, IntroData.g_pIntroData);
+
+		DisableFog();
+
 		render.SceneEnd();
 
 		RenderPlayerSprites();
@@ -541,6 +549,8 @@ public class ViewRender : IViewRender
 
 		DrawWorldAndEntities(drawSkybox, in viewRender, clearFlags);
 
+		DisableFog();
+
 		DebugViewRender.Draw3DDebuggingInfo(in viewRender);
 
 		// todo
@@ -632,6 +642,8 @@ public class ViewRender : IViewRender
 
 		renderContext.MatrixMode(MaterialMatrixMode.Projection);
 		renderContext.PopMatrix();
+
+		DisableFog();
 
 		// Make sure sound doesn't stutter
 		engine.Sound_ExtraUpdate();
