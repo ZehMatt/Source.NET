@@ -28,6 +28,24 @@ public static class ViewRenderConVars
 	internal readonly static ConVar r_drawopaquerenderables = new("1", FCvar.Cheat);
 	internal readonly static ConVar r_threaded_renderables = new("0", 0);
 	internal readonly static ConVar r_DrawDetailProps = new("1", FCvar.None, "0=Off, 1=Normal, 2=Wireframe");
+	internal readonly static ConVar r_debugcheapwater = new("0", FCvar.Cheat);
+	internal readonly static ConVar r_waterforceexpensive = new("0", FCvar.Archive);
+	internal readonly static ConVar r_waterforcereflectentities = new("0", 0);
+	internal readonly static ConVar r_WaterDrawRefraction = new("1", 0, "Enable water refraction");
+	internal readonly static ConVar r_WaterDrawReflection = new("1", 0, "Enable water reflection");
+	internal readonly static ConVar r_ForceWaterLeaf = new("1", 0, "Enable for optimization to water - considers view in leaf under water for purposes of culling");
+	internal readonly static ConVar mat_drawwater = new("1", FCvar.Cheat);
+	internal readonly static ConVar mat_clipz = new("1", 0);
+}
+
+public struct WaterRenderInfo
+{
+	public bool CheapWater;
+	public bool Reflect;
+	public bool Refract;
+	public bool ReflectEntities;
+	public bool DrawWaterSurface;
+	public bool OpaqueWater;
 }
 
 public class RenderExecutor
@@ -106,19 +124,135 @@ public class Base3dView
 public class BaseWorldView : Rendering3dView
 {
 	public BaseWorldView(ViewRender mainView) : base(mainView) { }
-	protected void DrawSetup(float waterHeight, DrawFlags setupFlags, float waterZAdjust) {
+
+	static Vector3 SavedLinearLightMapScale = new(-1, -1, -1);
+
+	static void SetLightmapScaleForWater() {
+		if (Singleton<IMaterialSystemHardwareConfig>().GetHDRType() == HDRType.Integer) {
+			using MatRenderContextPtr renderContext = new(materials);
+			SavedLinearLightMapScale = renderContext.GetToneMappingScaleLinear();
+			Vector3 t25 = SavedLinearLightMapScale;
+			t25 *= 0.25f;
+			renderContext.SetToneMappingScaleLinear(t25);
+		}
+	}
+
+	protected bool AdjustView(float waterHeight) {
+		if ((DrawFlags & DrawFlags.RenderRefraction) != 0) {
+			ITexture texture = RenderTexture.GetWaterRefractionTexture()!;
+
+			setup.X = setup.Y = 0;
+			setup.Width = texture.GetActualWidth();
+			setup.Height = texture.GetActualHeight();
+
+			return true;
+		}
+
+		if ((DrawFlags & DrawFlags.RenderReflection) != 0) {
+			ITexture texture = RenderTexture.GetWaterReflectionTexture()!;
+
+			if (setup.ViewToProjectionOverride)
+				setup.ViewToProjection.M23 = -setup.ViewToProjection.M23;
+
+			setup.X = setup.Y = 0;
+			setup.Width = texture.GetActualWidth();
+			setup.Height = texture.GetActualHeight();
+			setup.Angles.X = -setup.Angles.X;
+			setup.Angles.Z = -setup.Angles.Z;
+			setup.Origin.Z -= 2.0f * (setup.Origin.Z - waterHeight);
+			return true;
+		}
+
+		return false;
+	}
+
+	protected void PushView(float waterHeight) {
+		float spread = 2.0f;
+		if ((DrawFlags & DrawFlags.FudgeUp) != 0)
+			waterHeight += spread;
+		else
+			waterHeight -= spread;
+
+		MaterialHeightClipMode clipMode = MaterialHeightClipMode.Disable;
+		if ((DrawFlags & DrawFlags.ClipZ) != 0 && mat_clipz.GetBool()) {
+			if ((DrawFlags & DrawFlags.ClipBelow) != 0)
+				clipMode = MaterialHeightClipMode.RenderAboveHeight;
+			else
+				clipMode = MaterialHeightClipMode.RenderBelowHeight;
+		}
+
+		using MatRenderContextPtr renderContext = new(mainView.materials);
+
+		if ((DrawFlags & DrawFlags.RenderRefraction) != 0) {
+			renderContext.SetFogZ(waterHeight);
+			renderContext.SetHeightClipZ(waterHeight);
+			renderContext.SetHeightClipMode(clipMode);
+
+			render.Push3DView(in setup, ClearFlags, RenderTexture.GetWaterRefractionTexture(), GetFrustrum(), null);
+
+			return;
+		}
+
+		if ((DrawFlags & DrawFlags.RenderReflection) != 0) {
+			ITexture? texture = RenderTexture.GetWaterReflectionTexture();
+
+			renderContext.SetFogZ(waterHeight);
+			renderContext.SetHeightClipZ(waterHeight);
+			renderContext.SetHeightClipMode(clipMode);
+
+			render.Push3DView(in setup, ClearFlags, texture, GetFrustrum(), null);
+
+			SetLightmapScaleForWater();
+			return;
+		}
+
+		if ((ClearFlags & (ClearFlags.ClearDepth | ClearFlags.ClearColor | ClearFlags.ClearStencil)) != 0) {
+			if ((ClearFlags & ClearFlags.ClearObeyStencil) != 0)
+				renderContext.ClearBuffersObeyStencil((ClearFlags & ClearFlags.ClearColor) != 0, (ClearFlags & ClearFlags.ClearDepth) != 0);
+			else
+				renderContext.ClearBuffers((ClearFlags & ClearFlags.ClearColor) != 0, (ClearFlags & ClearFlags.ClearDepth) != 0, (ClearFlags & ClearFlags.ClearStencil) != 0);
+		}
+
+		renderContext.SetHeightClipMode(clipMode);
+		if (clipMode != MaterialHeightClipMode.Disable)
+			renderContext.SetHeightClipZ(waterHeight);
+	}
+
+	protected void PopView() {
+		using MatRenderContextPtr renderContext = new(mainView.materials);
+
+		renderContext.SetHeightClipMode(MaterialHeightClipMode.Disable);
+		if ((DrawFlags & (DrawFlags.RenderRefraction | DrawFlags.RenderReflection)) != 0) {
+			render.PopView(GetFrustrum());
+			if (SavedLinearLightMapScale.X >= 0) {
+				renderContext.SetToneMappingScaleLinear(SavedLinearLightMapScale);
+				SavedLinearLightMapScale.X = -1;
+			}
+		}
+	}
+
+	protected void DrawSetup(float waterHeight, DrawFlags setupFlags, float waterZAdjust, int forceViewLeaf = -1) {
 		ViewID savedViewID = ViewRender.g_CurrentViewID;
 		ViewRender.g_CurrentViewID = ViewID.Illegal;
+
+		bool viewChanged = AdjustView(waterHeight);
+
+		if (viewChanged)
+			render.Push3DView(in setup, 0, null, GetFrustrum(), null);
 
 		render.BeginUpdateLightmaps();
 
 		bool drawEntities = (setupFlags & DrawFlags.DrawEntities) != 0;
-		BuildWorldRenderLists(drawEntities, -1, true);
+		bool drawReflection = (setupFlags & DrawFlags.RenderReflection) != 0;
+		BuildWorldRenderLists(drawEntities, forceViewLeaf, true, false, drawReflection ? new Span<float>(ref waterHeight) : default);
 
 		if (drawEntities)
 			BuildRenderableRenderLists(savedViewID);
 
 		render.EndUpdateLightmaps();
+
+		if (viewChanged)
+			render.PopView(GetFrustrum());
 
 		ViewRender.g_CurrentViewID = savedViewID;
 	}
@@ -142,10 +276,19 @@ public class BaseWorldView : Rendering3dView
 		g_ClientShadowMgr.ComputeShadowTextures(in setup, WorldListInfo.LeafCount, WorldListInfo.LeafList);
 		MaybeInvalidateLocalPlayerAnimation();
 
-		ViewRender.g_CurrentViewID = savedViewID;
+		engine.Sound_ExtraUpdate();
+
+		ViewRender.g_CurrentViewID = viewID;
+
+		DrawFlags drawFlagsBackup = DrawFlags;
+		DrawFlags |= mainView.GetBaseDrawFlags();
+
+		PushView(waterHeight);
 
 		using MatRenderContextPtr renderContext = new(mainView.materials);
-		renderContext.ClearBuffers(false, true, false);
+
+		ITexture? saveFrameBufferCopyTexture = renderContext.GetFrameBufferCopyTexture(0);
+		renderContext.SetFrameBufferCopyTexture(RenderTexture.GetPowerOfTwoFrameBufferTexture());
 
 		RenderDepthMode depthMode = RenderDepthMode.Normal;
 
@@ -154,27 +297,286 @@ public class BaseWorldView : Rendering3dView
 			DrawOpaqueRenderables(depthMode);
 			DrawTranslucentRenderables(depthMode);
 		}
+		else {
+			DrawWorld(waterZAdjust);
+			DrawTranslucentWorldInLeaves(false);
+		}
+
+		renderContext.SetFrameBufferCopyTexture(saveFrameBufferCopyTexture);
+		PopView();
+
+		DrawFlags = drawFlagsBackup;
+
+		ViewRender.g_CurrentViewID = savedViewID;
 	}
 }
 
 public class SimpleWorldView : BaseWorldView
 {
+	VisibleFogVolumeInfo FogInfo;
+
 	public SimpleWorldView(ViewRender mainView) : base(mainView) { }
-	public void Setup(in ViewSetup view, ClearFlags clearFlags, bool drawSkybox) {
+	public void Setup(in ViewSetup view, ClearFlags clearFlags, bool drawSkybox, in VisibleFogVolumeInfo fogInfo, in WaterRenderInfo waterInfo) {
 		base.Setup(in view);
 
 		ClearFlags = clearFlags;
 		DrawFlags = DrawFlags.DrawEntities;
 
-		DrawFlags |= DrawFlags.RenderUnderwater | DrawFlags.RenderAbovewater;
+		if (!waterInfo.OpaqueWater)
+			DrawFlags |= DrawFlags.RenderUnderwater | DrawFlags.RenderAbovewater;
+		else {
+			bool viewIntersectsWater = ViewRender.DoesViewPlaneIntersectWater(fogInfo.WaterHeight, fogInfo.VisibleFogVolume);
+			if (viewIntersectsWater)
+				DrawFlags |= DrawFlags.RenderUnderwater | DrawFlags.RenderAbovewater;
+			else if (fogInfo.EyeInFogVolume)
+				DrawFlags |= DrawFlags.RenderUnderwater;
+			else
+				DrawFlags |= DrawFlags.RenderAbovewater;
+		}
+		if (waterInfo.DrawWaterSurface)
+			DrawFlags |= DrawFlags.RenderWater;
+
+		if (!fogInfo.EyeInFogVolume && drawSkybox)
+			DrawFlags |= DrawFlags.DrawSkybox;
+
+		FogInfo = fogInfo;
+	}
+	public override void Draw() {
+		DrawSetup(0, DrawFlags, 0);
+
+		if (FogInfo.EyeInFogVolume)
+			ClearFlags |= ClearFlags.ClearColor;
+
+		DrawExecute(0, CurrentViewID(), 0);
+
+		using MatRenderContextPtr renderContext = new(mainView.materials);
+		renderContext.ClearColor4ub(0, 0, 0, 255);
+	}
+}
+
+public class BaseWaterView : BaseWorldView
+{
+	protected VisibleFogVolumeInfo FogInfo;
+	protected float WaterHeight;
+
+	public BaseWaterView(ViewRender mainView) : base(mainView) { }
+}
+
+public class AboveWaterView : BaseWaterView
+{
+	WaterRenderInfo WaterInfo;
+	readonly ReflectionView Reflection;
+	readonly RefractionView Refraction;
+	readonly IntersectionView Intersection;
+
+	public AboveWaterView(ViewRender mainView) : base(mainView) {
+		Reflection = new(mainView, this);
+		Refraction = new(mainView, this);
+		Intersection = new(mainView, this);
+	}
+
+	public void Setup(in ViewSetup view, bool drawSkybox, in VisibleFogVolumeInfo fogInfo, in WaterRenderInfo waterInfo) {
+		base.Setup(in view);
+
+		WaterHeight = fogInfo.WaterHeight;
+
+		DrawFlags = DrawFlags.RenderAbovewater | DrawFlags.DrawEntities;
+		ClearFlags = ClearFlags.ClearDepth;
 
 		if (drawSkybox)
 			DrawFlags |= DrawFlags.DrawSkybox;
+
+		if (waterInfo.DrawWaterSurface)
+			DrawFlags |= DrawFlags.RenderWater;
+		if (!waterInfo.Refract && !waterInfo.OpaqueWater)
+			DrawFlags |= DrawFlags.RenderUnderwater;
+
+		FogInfo = fogInfo;
+		WaterInfo = waterInfo;
 	}
+
+	public override void ReleaseLists() {
+		base.ReleaseLists();
+		Reflection.ReleaseLists();
+		Refraction.ReleaseLists();
+		Intersection.ReleaseLists();
+	}
+
 	public override void Draw() {
+		if (WaterInfo.Reflect) {
+			Reflection.Setup(WaterInfo.ReflectEntities);
+			mainView.AddViewToScene(Reflection);
+		}
+
+		bool viewIntersectsWater = false;
+
+		if (WaterInfo.Refract) {
+			Refraction.Setup();
+			mainView.AddViewToScene(Refraction);
+
+			viewIntersectsWater = ViewRender.DoesViewPlaneIntersectWater(FogInfo.WaterHeight, FogInfo.VisibleFogVolume);
+		}
+		else if ((DrawFlags & DrawFlags.DrawSkybox) == 0)
+			ClearFlags |= ClearFlags.ClearColor;
+
+		if (viewIntersectsWater)
+			DrawFlags |= DrawFlags.ClipZ | DrawFlags.ClipBelow;
+
+		DrawSetup(WaterHeight, DrawFlags, 0);
+		DrawExecute(WaterHeight, CurrentViewID(), 0);
+
+		if (WaterInfo.Refract && viewIntersectsWater) {
+			Intersection.Setup();
+			mainView.AddViewToScene(Intersection);
+		}
+	}
+
+	class ReflectionView(ViewRender mainView, AboveWaterView outer) : BaseWorldView(mainView)
+	{
+		public void Setup(bool reflectEntities) {
+			base.Setup(in outer.setup);
+
+			ClearFlags = ClearFlags.ClearDepth;
+
+			DrawFlags = DrawFlags.RenderReflection | DrawFlags.ClipZ | DrawFlags.ClipBelow | DrawFlags.RenderAbovewater;
+
+			DrawFlags |= DrawFlags.DrawSkybox;
+
+			if (reflectEntities)
+				DrawFlags |= DrawFlags.DrawEntities;
+		}
+
+		public override void Draw() {
+			ViewID saveViewID = CurrentViewID();
+			SetupCurrentView(in setup.Origin, in setup.Angles, ViewID.Reflection);
+
+			DrawSetup(outer.FogInfo.WaterHeight, DrawFlags, 0.0f, outer.FogInfo.VisibleFogVolumeLeaf);
+
+			DrawExecute(outer.FogInfo.WaterHeight, ViewID.Reflection, 0.0f);
+
+			SetupCurrentView(in setup.Origin, in setup.Angles, saveViewID);
+
+			using MatRenderContextPtr renderContext = new(mainView.materials);
+			renderContext.Flush();
+		}
+	}
+
+	class RefractionView(ViewRender mainView, AboveWaterView outer) : BaseWorldView(mainView)
+	{
+		public void Setup() {
+			base.Setup(in outer.setup);
+
+			ClearFlags = ClearFlags.ClearColor | ClearFlags.ClearDepth;
+
+			DrawFlags = DrawFlags.RenderRefraction | DrawFlags.ClipZ | DrawFlags.RenderUnderwater | DrawFlags.FudgeUp | DrawFlags.DrawEntities;
+		}
+
+		public override void Draw() {
+			ViewID saveViewID = CurrentViewID();
+			SetupCurrentView(in setup.Origin, in setup.Angles, ViewID.Refraction);
+
+			DrawSetup(outer.WaterHeight, DrawFlags, 0);
+
+			DrawExecute(outer.WaterHeight, ViewID.Refraction, 0);
+
+			SetupCurrentView(in setup.Origin, in setup.Angles, saveViewID);
+
+			using MatRenderContextPtr renderContext = new(mainView.materials);
+			renderContext.ClearColor4ub(0, 0, 0, 255);
+			renderContext.Flush();
+		}
+	}
+
+	class IntersectionView(ViewRender mainView, AboveWaterView outer) : BaseWorldView(mainView)
+	{
+		public void Setup() {
+			base.Setup(in outer.setup);
+			DrawFlags = DrawFlags.RenderUnderwater | DrawFlags.ClipZ | DrawFlags.DrawEntities;
+		}
+
+		public override void Draw() {
+			DrawSetup(outer.FogInfo.WaterHeight, DrawFlags, 0);
+
+			DrawExecute(outer.FogInfo.WaterHeight, ViewID.None, 0);
+			using MatRenderContextPtr renderContext = new(mainView.materials);
+			renderContext.ClearColor4ub(0, 0, 0, 255);
+		}
+	}
+}
+
+public class UnderWaterView : BaseWaterView
+{
+	WaterRenderInfo WaterInfo;
+	bool DrawSkybox;
+	readonly RefractionView Refraction;
+
+	public UnderWaterView(ViewRender mainView) : base(mainView) {
+		Refraction = new(mainView, this);
+	}
+
+	public void Setup(in ViewSetup view, bool drawSkybox, in VisibleFogVolumeInfo fogInfo, in WaterRenderInfo waterInfo) {
+		base.Setup(in view);
+
+		WaterHeight = fogInfo.WaterHeight;
+
+		DrawFlags = DrawFlags.FudgeUp | DrawFlags.RenderUnderwater | DrawFlags.DrawEntities;
+		ClearFlags = ClearFlags.ClearDepth;
+
+		DrawFlags |= DrawFlags.ClipZ;
+		if (waterInfo.DrawWaterSurface)
+			DrawFlags |= DrawFlags.RenderWater;
+		if (!waterInfo.Refract && !waterInfo.OpaqueWater)
+			DrawFlags |= DrawFlags.RenderAbovewater;
+
+		FogInfo = fogInfo;
+		WaterInfo = waterInfo;
+		DrawSkybox = drawSkybox;
+	}
+
+	public override void ReleaseLists() {
+		base.ReleaseLists();
+		Refraction.ReleaseLists();
+	}
+
+	public override void Draw() {
+		if (WaterInfo.Refract) {
+			Refraction.Setup();
+			mainView.AddViewToScene(Refraction);
+		}
+
+		DrawSetup(WaterHeight, DrawFlags, 0);
+		DrawExecute(WaterHeight, CurrentViewID(), 0);
+		ClearFlags = 0;
+
 		using MatRenderContextPtr renderContext = new(mainView.materials);
-		DrawSetup(0, DrawFlags, 0);
-		DrawExecute(0, ViewRender.g_CurrentViewID, 0);
+		renderContext.ClearColor4ub(0, 0, 0, 255);
+	}
+
+	class RefractionView(ViewRender mainView, UnderWaterView outer) : BaseWorldView(mainView)
+	{
+		public void Setup() {
+			base.Setup(in outer.setup);
+			DrawFlags = DrawFlags.ClipZ | DrawFlags.ClipBelow | DrawFlags.RenderAbovewater | DrawFlags.DrawEntities;
+
+			ClearFlags = ClearFlags.ClearDepth;
+			if (outer.DrawSkybox) {
+				ClearFlags |= ClearFlags.ClearColor;
+				DrawFlags |= DrawFlags.DrawSkybox | DrawFlags.ClipSkybox;
+			}
+		}
+
+		public override void Draw() {
+			using MatRenderContextPtr renderContext = new(mainView.materials);
+
+			DrawSetup(outer.WaterHeight, DrawFlags, 0);
+
+			DrawExecute(outer.WaterHeight, ViewID.Refraction, 0);
+
+			System.Drawing.Rectangle srcRect = new(setup.X, setup.Y, setup.Width, setup.Height);
+
+			ITexture? texture = RenderTexture.GetWaterRefractionTexture();
+			renderContext.CopyRenderTargetToTextureEx(texture, 0, ref srcRect, ref System.Runtime.CompilerServices.Unsafe.NullRef<System.Drawing.Rectangle>());
+		}
 	}
 }
 public class Rendering3dView : Base3dView
